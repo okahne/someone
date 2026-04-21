@@ -1,0 +1,9 @@
+# Build-Ready Specification: Someone Meetup MVP
+
+This document has been split into the `docs` set.
+
+- Canonical requirements: `docs/specification.md`
+- Delivery sequencing: `docs/implementation-plan.md`
+- System design planning: `docs/architecture-plan.md`
+- Quality and release planning: `docs/testing-plan.md`
+- Documentation index: `docs/README.md`
