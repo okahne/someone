@@ -1,0 +1,11 @@
+export enum SingleState {
+    JOINED = 'JOINED',
+    AVAILABLE = 'AVAILABLE',
+    SEARCHING = 'SEARCHING',
+    BOOKED = 'BOOKED',
+    MOVING = 'MOVING',
+    MEETING = 'MEETING',
+    COMPLETED = 'COMPLETED',
+    UNMATCHED = 'UNMATCHED',
+    OFFLINE = 'OFFLINE',
+}

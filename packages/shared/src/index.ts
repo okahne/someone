@@ -1,4 +1,7 @@
-// Shared contracts package
-// Enums, DTOs, WebSocket types, and API contracts will be exported from here.
+// Shared contracts package: enums, DTOs, WebSocket messages, and background job payloads
+// consumed by both the Angular frontend and NestJS backend.
 
-export { };
+export * from './enums';
+export * from './dto';
+export * from './ws';
+export * from './jobs';

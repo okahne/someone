@@ -1,0 +1,416 @@
+// Prisma schema for the Someone Meetup MVP.
+// Reflects docs/data-model.md. Snake_case columns/tables, UUID primary keys.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------------- enums
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  LIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum SingleState {
+  JOINED
+  AVAILABLE
+  SEARCHING
+  BOOKED
+  MOVING
+  MEETING
+  COMPLETED
+  UNMATCHED
+  OFFLINE
+}
+
+enum UserRoleName {
+  SYSTEM_ADMIN
+  ORGANISER
+}
+
+enum IdentityProvider {
+  GOOGLE
+  DISCORD
+}
+
+enum MatchRunTrigger {
+  SCHEDULED
+  IMMEDIATE
+}
+
+// ------------------------------------------------------------------- models
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  displayName String    @map("display_name")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  identities         Identity[]
+  roles              UserRole[]            @relation("UserRoles")
+  rolesGranted       UserRole[]            @relation("UserRolesGranted")
+  eventsCreated      Event[]               @relation("EventsCreated")
+  organiserOf        EventOrganiser[]      @relation("EventOrganiserUser")
+  organiserAssigned  EventOrganiser[]      @relation("EventOrganiserAssigner")
+  singleSessions     SingleSession[]
+  auditEntries       AuditEntry[]
+
+  @@map("user")
+}
+
+model Identity {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  provider    IdentityProvider
+  providerSub String           @map("provider_sub")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSub])
+  @@index([userId])
+  @@map("identity")
+}
+
+model UserRole {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  role      UserRoleName
+  grantedAt DateTime     @default(now()) @map("granted_at")
+  grantedBy String?      @map("granted_by") @db.Uuid
+
+  user        User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  grantedByUser User? @relation("UserRolesGranted", fields: [grantedBy], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("user_role")
+}
+
+model Event {
+  id          String      @id @default(uuid()) @db.Uuid
+  slug        String      @unique
+  title       String
+  description String?
+  status      EventStatus @default(DRAFT)
+  createdBy   String      @map("created_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  creator    User             @relation("EventsCreated", fields: [createdBy], references: [id], onDelete: Restrict)
+  organisers EventOrganiser[]
+  languages  EventLanguage[]
+  pools      Pool[]
+  sessions   SingleSession[]
+
+  @@map("event")
+}
+
+model EventOrganiser {
+  id         String   @id @default(uuid()) @db.Uuid
+  eventId    String   @map("event_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  assignedBy String   @map("assigned_by") @db.Uuid
+
+  event           Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User  @relation("EventOrganiserUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUser  User  @relation("EventOrganiserAssigner", fields: [assignedBy], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_organiser")
+}
+
+model EventLanguage {
+  id        String  @id @default(uuid()) @db.Uuid
+  eventId   String  @map("event_id") @db.Uuid
+  locale    String
+  isDefault Boolean @default(false) @map("is_default")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // At most one default language per event.
+  @@unique([eventId, isDefault], map: "event_language_default_unique")
+  @@unique([eventId, locale])
+  @@index([eventId])
+  @@map("event_language")
+}
+
+model Pool {
+  id                       String    @id @default(uuid()) @db.Uuid
+  eventId                  String    @map("event_id") @db.Uuid
+  defaultTitle             String    @map("default_title")
+  allowRematch             Boolean   @default(false) @map("allow_rematch")
+  callSchedule             Json      @map("call_schedule")
+  meetingTimeLimitMinutes  Int?      @map("meeting_time_limit_minutes")
+  archivedAt               DateTime? @map("archived_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  event           Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  translations    PoolTranslation[]
+  tags            Tag[]
+  meetingSpots    MeetingSpot[]
+  questionScript  QuestionScript?
+  memberships     SinglePoolMembership[]
+  matchRuns       MatchRun[]
+  matchLogs       MatchLog[]
+
+  @@index([eventId])
+  @@map("pool")
+}
+
+model PoolTranslation {
+  id     String @id @default(uuid()) @db.Uuid
+  poolId String @map("pool_id") @db.Uuid
+  locale String
+  title  String
+
+  pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, locale])
+  @@map("pool_translation")
+}
+
+model Tag {
+  id           String    @id @default(uuid()) @db.Uuid
+  poolId       String    @map("pool_id") @db.Uuid
+  defaultLabel String    @map("default_label")
+  archivedAt   DateTime? @map("archived_at")
+
+  pool         Pool             @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  translations TagTranslation[]
+
+  @@index([poolId])
+  @@map("tag")
+}
+
+model TagTranslation {
+  id     String @id @default(uuid()) @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+  locale String
+  label  String
+
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, locale])
+  @@map("tag_translation")
+}
+
+model MeetingSpot {
+  id          String    @id @default(uuid()) @db.Uuid
+  poolId      String    @map("pool_id") @db.Uuid
+  title       String
+  description String?
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  pool    Pool                @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  images  MeetingSpotImage[]
+  matches Match[]
+
+  @@index([poolId])
+  @@map("meeting_spot")
+}
+
+model MeetingSpotImage {
+  id            String   @id @default(uuid()) @db.Uuid
+  meetingSpotId String   @map("meeting_spot_id") @db.Uuid
+  storageKey    String   @map("storage_key")
+  mimeType      String   @map("mime_type")
+  sizeBytes     Int      @map("size_bytes")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+
+  meetingSpot MeetingSpot @relation(fields: [meetingSpotId], references: [id], onDelete: Cascade)
+
+  @@index([meetingSpotId])
+  @@map("meeting_spot_image")
+}
+
+model QuestionScript {
+  id        String @id @default(uuid()) @db.Uuid
+  poolId    String @unique @map("pool_id") @db.Uuid
+  questions Json
+
+  pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@map("question_script")
+}
+
+model SingleSession {
+  id                  String      @id @default(uuid()) @db.Uuid
+  eventId             String      @map("event_id") @db.Uuid
+  userId              String?     @map("user_id") @db.Uuid
+  displayName         String      @map("display_name")
+  profileImageKey     String?     @map("profile_image_key")
+  profileImageConsent Boolean     @default(false) @map("profile_image_consent")
+  state               SingleState @default(JOINED)
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+  expiresAt           DateTime?   @map("expires_at")
+
+  event             Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user              User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  poolMemberships   SinglePoolMembership[]
+  preferences       SinglePreference[]
+  pushSubscriptions PushSubscription[]
+  matchesAsA        Match[]                @relation("MatchSessionA")
+  matchesAsB        Match[]                @relation("MatchSessionB")
+  matchLogsAsA      MatchLog[]             @relation("MatchLogSessionA")
+  matchLogsAsB      MatchLog[]             @relation("MatchLogSessionB")
+  confirmations     MeetingConfirmation[]
+  matchRunsTriggered MatchRun[]            @relation("MatchRunInitiator")
+
+  @@index([eventId])
+  @@index([userId])
+  @@map("single_session")
+}
+
+model SinglePoolMembership {
+  id         String    @id @default(uuid()) @db.Uuid
+  sessionId  String    @map("session_id") @db.Uuid
+  poolId     String    @map("pool_id") @db.Uuid
+  ownTagIds  String[]  @map("own_tag_ids") @db.Uuid
+  joinedAt   DateTime  @default(now()) @map("joined_at")
+  leftAt     DateTime? @map("left_at")
+
+  session     SingleSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pool        Pool               @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  preferences SinglePreference[]
+
+  @@index([sessionId])
+  @@index([poolId])
+  @@map("single_pool_membership")
+}
+
+model SinglePreference {
+  id               String   @id @default(uuid()) @db.Uuid
+  sessionId        String   @map("session_id") @db.Uuid
+  poolMembershipId String   @map("pool_membership_id") @db.Uuid
+  mandatoryTagIds  String[] @map("mandatory_tag_ids") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  session        SingleSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  poolMembership SinglePoolMembership @relation(fields: [poolMembershipId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("single_preference")
+}
+
+model PushSubscription {
+  id           String    @id @default(uuid()) @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  subscribedAt DateTime  @default(now()) @map("subscribed_at")
+  revokedAt    DateTime? @map("revoked_at")
+
+  session SingleSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("push_subscription")
+}
+
+model MatchRun {
+  id              String          @id @default(uuid()) @db.Uuid
+  poolId          String          @map("pool_id") @db.Uuid
+  trigger         MatchRunTrigger
+  initiatedBy     String?         @map("initiated_by") @db.Uuid
+  ranAt           DateTime        @default(now()) @map("ran_at")
+  totalBooked     Int             @default(0) @map("total_booked")
+  totalMatched    Int             @default(0) @map("total_matched")
+  totalUnmatched  Int             @default(0) @map("total_unmatched")
+  spotsShortfall  Int             @default(0) @map("spots_shortfall")
+
+  pool        Pool           @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  initiator   SingleSession? @relation("MatchRunInitiator", fields: [initiatedBy], references: [id], onDelete: SetNull)
+  matches     Match[]
+
+  @@index([poolId])
+  @@map("match_run")
+}
+
+model Match {
+  id             String    @id @default(uuid()) @db.Uuid
+  matchRunId     String    @map("match_run_id") @db.Uuid
+  sessionAId     String    @map("session_a_id") @db.Uuid
+  sessionBId     String    @map("session_b_id") @db.Uuid
+  meetingSpotId  String    @map("meeting_spot_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+  releasedAt     DateTime? @map("released_at")
+
+  matchRun      MatchRun              @relation(fields: [matchRunId], references: [id], onDelete: Cascade)
+  sessionA      SingleSession         @relation("MatchSessionA", fields: [sessionAId], references: [id], onDelete: Cascade)
+  sessionB      SingleSession         @relation("MatchSessionB", fields: [sessionBId], references: [id], onDelete: Cascade)
+  meetingSpot   MeetingSpot           @relation(fields: [meetingSpotId], references: [id], onDelete: Restrict)
+  log           MatchLog?
+  confirmations MeetingConfirmation[]
+
+  @@index([matchRunId])
+  @@index([sessionAId])
+  @@index([sessionBId])
+  @@index([meetingSpotId])
+  @@map("match")
+}
+
+model MatchLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  matchId         String    @unique @map("match_id") @db.Uuid
+  poolId          String    @map("pool_id") @db.Uuid
+  sessionAId      String    @map("session_a_id") @db.Uuid
+  sessionBId      String    @map("session_b_id") @db.Uuid
+  meetingBeganAt  DateTime  @default(now()) @map("meeting_began_at")
+  meetingEndedAt  DateTime? @map("meeting_ended_at")
+
+  match    Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  pool     Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  sessionA SingleSession @relation("MatchLogSessionA", fields: [sessionAId], references: [id], onDelete: Cascade)
+  sessionB SingleSession @relation("MatchLogSessionB", fields: [sessionBId], references: [id], onDelete: Cascade)
+
+  @@index([poolId])
+  @@index([sessionAId])
+  @@index([sessionBId])
+  @@map("match_log")
+}
+
+model MeetingConfirmation {
+  id          String   @id @default(uuid()) @db.Uuid
+  matchId     String   @map("match_id") @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  confirmedAt DateTime @default(now()) @map("confirmed_at")
+  noShow      Boolean  @default(false) @map("no_show")
+
+  match   Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  session SingleSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, sessionId])
+  @@map("meeting_confirmation")
+}
+
+model AuditEntry {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id") @db.Uuid
+  payload    Json
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, occurredAt])
+  @@index([entityType, entityId])
+  @@map("audit_entry")
+}

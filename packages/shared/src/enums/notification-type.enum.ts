@@ -1,0 +1,5 @@
+export enum NotificationType {
+    MATCH_ASSIGNED = 'MATCH_ASSIGNED',
+    MEETING_WARNING = 'MEETING_WARNING',
+    MEETING_ENDED = 'MEETING_ENDED',
+}
