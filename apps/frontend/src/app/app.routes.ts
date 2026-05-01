@@ -3,6 +3,16 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
     { path: '', redirectTo: 'admin/login', pathMatch: 'full' },
     {
+        path: 'event/:slug',
+        loadComponent: () =>
+            import('./single/event-entry.component').then((m) => m.EventEntryComponent),
+    },
+    {
+        path: 'play/:sessionId',
+        loadComponent: () =>
+            import('./single/single-shell.component').then((m) => m.SingleShellComponent),
+    },
+    {
         path: 'admin/login',
         loadComponent: () =>
             import('./admin/admin-login.component').then((m) => m.AdminLoginComponent),

@@ -11,6 +11,9 @@ import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { PoolsModule } from './modules/pools/pools.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
+import { MatchingModule } from './modules/matching/matching.module';
 
 @Module({
     imports: [
@@ -34,6 +37,9 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
         EventsModule,
         PoolsModule,
         DashboardModule,
+        SessionsModule,
+        RealtimeModule,
+        MatchingModule,
         HealthModule,
     ],
 })
