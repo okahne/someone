@@ -8,6 +8,7 @@ import { CompatibilityService, CompatibleSingle, pairKey } from './compatibility
 import { BlossomService } from './blossom.service';
 import { PendingPair, SpotReservationService } from './spot-reservation.service';
 import { TimersService } from './timers.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class MatchingService {
@@ -21,6 +22,7 @@ export class MatchingService {
         private readonly reservation: SpotReservationService,
         private readonly broker: GatewayBroker,
         private readonly timers: TimersService,
+        private readonly notifications: NotificationsService,
     ) { }
 
     private async loadSingle(sessionId: string): Promise<CompatibleSingle | null> {
@@ -193,6 +195,14 @@ export class MatchingService {
             });
             out.push({ matchId: match.id });
             this.timers.scheduleNoShow(match.id);
+            // Push notify both parties (delivered in addition to WS)
+            const push = {
+                title: 'Match found!',
+                body: `Meet at ${match.meetingSpot.title}`,
+                matchId: match.id,
+            };
+            await this.notifications.dispatch(p.sessionAId, push);
+            await this.notifications.dispatch(p.sessionBId, push);
         }
         return out;
     }

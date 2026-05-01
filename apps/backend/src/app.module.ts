@@ -14,6 +14,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { MatchingModule } from './modules/matching/matching.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { RetentionModule } from './modules/retention/retention.module';
 
 @Module({
     imports: [
@@ -40,6 +42,8 @@ import { MatchingModule } from './modules/matching/matching.module';
         SessionsModule,
         RealtimeModule,
         MatchingModule,
+        NotificationsModule,
+        RetentionModule,
         HealthModule,
     ],
 })

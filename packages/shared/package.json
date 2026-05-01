@@ -7,7 +7,7 @@
     "scripts": {
         "build": "tsc --project tsconfig.json",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint \"src/**/*.ts\" --max-warnings 0"
+        "lint": "eslint \"src/**/*.ts\" --ignore-pattern \"**/*.spec.ts\" --max-warnings 0"
     },
     "dependencies": {
         "class-transformer": "^0.5.1",

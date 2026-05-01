@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ServerMessageType } from '@someone/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { GatewayBroker } from '../realtime/gateway.broker';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { AppConfig } from '../../config/app.config';
 import { MeetingsService } from './meetings.service';
 
@@ -26,6 +27,7 @@ export class TimersService {
         config: ConfigService,
         private readonly prisma: PrismaService,
         private readonly broker: GatewayBroker,
+        private readonly notifications: NotificationsService,
         @Inject(forwardRef(() => MeetingsService))
         private readonly meetings: MeetingsService,
     ) {
@@ -58,16 +60,16 @@ export class TimersService {
         const entry: TimerEntry = {};
         if (warningMs > 0) {
             entry.warning = setTimeout(() => {
-                this.broker.emitToSession(match.sessionAId, {
+                const warnPayload = {
                     type: ServerMessageType.MEETING_WARNING,
                     matchId,
                     remainingSeconds: 120,
-                });
-                this.broker.emitToSession(match.sessionBId, {
-                    type: ServerMessageType.MEETING_WARNING,
-                    matchId,
-                    remainingSeconds: 120,
-                });
+                };
+                this.broker.emitToSession(match.sessionAId, warnPayload);
+                this.broker.emitToSession(match.sessionBId, warnPayload);
+                const push = { title: 'Meeting ending soon', body: '2 minutes remaining', matchId };
+                this.notifications.dispatch(match.sessionAId, push).catch(() => undefined);
+                this.notifications.dispatch(match.sessionBId, push).catch(() => undefined);
             }, warningMs);
         }
         entry.expiry = setTimeout(() => {
