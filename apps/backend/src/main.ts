@@ -19,6 +19,10 @@ async function bootstrap(): Promise<void> {
 
     app.useGlobalFilters(new HttpExceptionFilter());
 
+    app.setGlobalPrefix('api/v1', { exclude: ['health'] });
+
+    app.enableCors({ origin: true, credentials: true });
+
     const port = process.env['PORT'] ?? 3000;
     await app.listen(port);
 }

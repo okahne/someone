@@ -1,3 +1,33 @@
 import { Routes } from '@angular/router';
 
-export const routes: Routes = [];
+export const routes: Routes = [
+    { path: '', redirectTo: 'admin/login', pathMatch: 'full' },
+    {
+        path: 'admin/login',
+        loadComponent: () =>
+            import('./admin/admin-login.component').then((m) => m.AdminLoginComponent),
+    },
+    {
+        path: 'admin',
+        loadComponent: () =>
+            import('./admin/admin-shell.component').then((m) => m.AdminShellComponent),
+        children: [
+            {
+                path: 'events',
+                loadComponent: () =>
+                    import('./admin/admin-events.component').then((m) => m.AdminEventsComponent),
+            },
+            {
+                path: 'events/:id',
+                loadComponent: () =>
+                    import('./admin/admin-event-detail.component').then((m) => m.AdminEventDetailComponent),
+            },
+            {
+                path: 'audit',
+                loadComponent: () =>
+                    import('./admin/admin-audit.component').then((m) => m.AdminAuditComponent),
+            },
+            { path: '', redirectTo: 'events', pathMatch: 'full' },
+        ],
+    },
+];

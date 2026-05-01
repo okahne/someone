@@ -1,1 +1,96 @@
 /* Global styles */
+:root {
+    --color-bg: #0f1115;
+    --color-fg: #f3f4f6;
+    --color-muted: #9ca3af;
+    --color-accent: #6366f1;
+    --color-danger: #ef4444;
+    --color-success: #10b981;
+    --color-card: #1a1d24;
+    --radius: 8px;
+    --space: 16px;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+}
+
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 14px;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: transparent; border: 1px solid var(--color-muted); }
+button.danger { background: var(--color-danger); }
+
+input, select, textarea {
+    width: 100%;
+    padding: 8px 12px;
+    background: #11141a;
+    border: 1px solid #2a2f3a;
+    color: var(--color-fg);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+label { display: block; font-size: 13px; color: var(--color-muted); margin-bottom: 6px; }
+
+.card {
+    background: var(--color-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.row { display: flex; gap: 12px; align-items: center; }
+.stack > * + * { margin-top: 12px; }
+.muted { color: var(--color-muted); }
+.error { color: var(--color-danger); }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: #2a2f3a;
+}
+.badge.draft { background: #6b7280; }
+.badge.published { background: #2563eb; }
+.badge.live { background: #10b981; }
+.badge.closed { background: #f59e0b; color: #1a1d24; }
+.badge.archived { background: #4b5563; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #2a2f3a; font-size: 14px; }
+
+.layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+}
+nav.sidebar {
+    background: #0a0c10;
+    padding: 24px 16px;
+}
+nav.sidebar a {
+    display: block;
+    padding: 8px;
+    border-radius: var(--radius);
+    color: var(--color-fg);
+}
+nav.sidebar a.active { background: var(--color-accent); }
+main.content { padding: 24px; }

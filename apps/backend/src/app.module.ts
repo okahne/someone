@@ -1,9 +1,17 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
+import { ConfigModule } from '@nestjs/config';
+import appConfig from './config/app.config';
 import { HealthModule } from './modules/health/health.module';
+import { PrismaModule } from './modules/prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { EventsModule } from './modules/events/events.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
     imports: [
+        ConfigModule.forRoot({ isGlobal: true, load: [appConfig] }),
         LoggerModule.forRoot({
             pinoHttp: {
                 level: process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug'),
@@ -12,11 +20,14 @@ import { HealthModule } from './modules/health/health.module';
                         ? { target: 'pino-pretty', options: { singleLine: true } }
                         : undefined,
                 redact: ['req.headers.authorization', 'req.headers.cookie'],
-                customProps: () => ({
-                    module: 'app',
-                }),
+                customProps: () => ({ module: 'app' }),
             },
         }),
+        PrismaModule,
+        AuthModule,
+        AuditModule,
+        UsersModule,
+        EventsModule,
         HealthModule,
     ],
 })

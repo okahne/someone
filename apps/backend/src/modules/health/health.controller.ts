@@ -2,16 +2,12 @@ import { Controller, Get } from '@nestjs/common';
 import {
     HealthCheck,
     HealthCheckService,
-    HttpHealthIndicator,
     HealthCheckResult,
 } from '@nestjs/terminus';
 
 @Controller('health')
 export class HealthController {
-    constructor(
-        private readonly health: HealthCheckService,
-        private readonly http: HttpHealthIndicator,
-    ) { }
+    constructor(private readonly health: HealthCheckService) { }
 
     @Get()
     @HealthCheck()
