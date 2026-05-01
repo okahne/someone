@@ -8,6 +8,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { EventsModule } from './modules/events/events.module';
 import { UsersModule } from './modules/users/users.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { PoolsModule } from './modules/pools/pools.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
     imports: [
@@ -27,7 +30,10 @@ import { UsersModule } from './modules/users/users.module';
         AuthModule,
         AuditModule,
         UsersModule,
+        StorageModule,
         EventsModule,
+        PoolsModule,
+        DashboardModule,
         HealthModule,
     ],
 })

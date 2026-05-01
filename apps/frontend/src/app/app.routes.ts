@@ -23,6 +23,11 @@ export const routes: Routes = [
                     import('./admin/admin-event-detail.component').then((m) => m.AdminEventDetailComponent),
             },
             {
+                path: 'events/:id/configure',
+                loadComponent: () =>
+                    import('./admin/organiser-config.component').then((m) => m.OrganiserConfigComponent),
+            },
+            {
                 path: 'audit',
                 loadComponent: () =>
                     import('./admin/admin-audit.component').then((m) => m.AdminAuditComponent),

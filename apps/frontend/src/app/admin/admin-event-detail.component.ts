@@ -1,15 +1,16 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AdminApiService, OrganiserAssignment } from '../core/admin-api.service';
 
 @Component({
     selector: 'app-admin-event-detail',
     standalone: true,
-    imports: [CommonModule, FormsModule],
+    imports: [CommonModule, FormsModule, RouterLink],
     template: `
         <h1>Event organisers</h1>
+        <p><a [routerLink]="['/admin/events', eventId, 'configure']">→ Configure pools, tags, spots, script, dashboard</a></p>
         <div class="card">
             <h2>Assign organiser</h2>
             <div class="row">
