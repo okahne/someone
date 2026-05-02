@@ -182,6 +182,12 @@ export class CreateMeetingSpotDto {
     @IsString()
     @Length(0, 2000)
     description?: string | null;
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => MeetingSpotTranslationDto)
+    translations?: MeetingSpotTranslationDto[];
 }
 
 /** `PATCH /spots/:id` request body. */
@@ -190,6 +196,28 @@ export class UpdateMeetingSpotDto {
     @IsString()
     @Length(1, 200)
     title?: string;
+
+    @IsOptional()
+    @IsString()
+    @Length(0, 2000)
+    description?: string | null;
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => MeetingSpotTranslationDto)
+    translations?: MeetingSpotTranslationDto[];
+}
+
+/** Meeting spot translation entry. */
+export class MeetingSpotTranslationDto {
+    @IsString()
+    @Length(2, 35)
+    locale!: string;
+
+    @IsString()
+    @Length(1, 200)
+    title!: string;
 
     @IsOptional()
     @IsString()
@@ -231,6 +259,9 @@ export class MeetingSpotDto {
 
     @IsArray()
     images!: MeetingSpotImageDto[];
+
+    @IsArray()
+    translations!: MeetingSpotTranslationDto[];
 
     @IsOptional()
     archivedAt?: string | null;

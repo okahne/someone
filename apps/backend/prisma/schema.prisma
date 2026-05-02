@@ -233,12 +233,26 @@ model MeetingSpot {
   archivedAt  DateTime? @map("archived_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  pool    Pool                @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  images  MeetingSpotImage[]
-  matches Match[]
+  pool         Pool                       @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  images       MeetingSpotImage[]
+  translations MeetingSpotTranslation[]
+  matches      Match[]
 
   @@index([poolId])
   @@map("meeting_spot")
+}
+
+model MeetingSpotTranslation {
+  id            String  @id @default(uuid()) @db.Uuid
+  meetingSpotId String  @map("meeting_spot_id") @db.Uuid
+  locale        String
+  title         String
+  description   String?
+
+  meetingSpot MeetingSpot @relation(fields: [meetingSpotId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingSpotId, locale])
+  @@map("meeting_spot_translation")
 }
 
 model MeetingSpotImage {

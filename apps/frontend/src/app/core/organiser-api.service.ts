@@ -22,13 +22,31 @@ export interface TagDto {
     archivedAt?: string | null;
 }
 
+export interface SpotTranslation {
+    locale: string;
+    title: string;
+    description?: string | null;
+}
+
 export interface MeetingSpotDto {
     id: string;
     poolId: string;
     title: string;
     description?: string | null;
     images: { id: string; storageKey: string; mimeType: string; sizeBytes: number; uploadedAt: string }[];
+    translations: SpotTranslation[];
     archivedAt?: string | null;
+}
+
+export interface QuestionScriptDto {
+    id: string;
+    poolId: string;
+    questions: { translations: { locale: string; title: string }[] }[];
+}
+
+export interface EventLanguage {
+    locale: string;
+    isDefault: boolean;
 }
 
 export interface OrganiserDashboard {
@@ -58,8 +76,12 @@ export class OrganiserApiService {
         return this.http.get<TagDto[]>(`${API_BASE}/pools/${poolId}/tags`);
     }
 
-    createTag(poolId: string, defaultLabel: string): Observable<TagDto> {
-        return this.http.post<TagDto>(`${API_BASE}/pools/${poolId}/tags`, { defaultLabel });
+    createTag(poolId: string, defaultLabel: string, translations: { locale: string; label: string }[] = []): Observable<TagDto> {
+        return this.http.post<TagDto>(`${API_BASE}/pools/${poolId}/tags`, { defaultLabel, translations });
+    }
+
+    updateTag(id: string, body: { defaultLabel?: string; translations?: { locale: string; label: string }[] }): Observable<TagDto> {
+        return this.http.patch<TagDto>(`${API_BASE}/tags/${id}`, body);
     }
 
     archiveTag(id: string): Observable<void> {
@@ -70,8 +92,12 @@ export class OrganiserApiService {
         return this.http.get<MeetingSpotDto[]>(`${API_BASE}/pools/${poolId}/spots`);
     }
 
-    createSpot(poolId: string, title: string, description?: string): Observable<MeetingSpotDto> {
-        return this.http.post<MeetingSpotDto>(`${API_BASE}/pools/${poolId}/spots`, { title, description });
+    createSpot(poolId: string, title: string, description?: string, translations: SpotTranslation[] = []): Observable<MeetingSpotDto> {
+        return this.http.post<MeetingSpotDto>(`${API_BASE}/pools/${poolId}/spots`, { title, description, translations });
+    }
+
+    updateSpot(id: string, body: { title?: string; description?: string | null; translations?: SpotTranslation[] }): Observable<MeetingSpotDto> {
+        return this.http.patch<MeetingSpotDto>(`${API_BASE}/spots/${id}`, body);
     }
 
     archiveSpot(id: string): Observable<void> {
@@ -84,8 +110,16 @@ export class OrganiserApiService {
         return this.http.post<MeetingSpotDto>(`${API_BASE}/spots/${spotId}/images`, fd);
     }
 
-    setLanguages(eventId: string, languages: { locale: string; isDefault: boolean }[]): Observable<unknown> {
+    listLanguages(eventId: string): Observable<EventLanguage[]> {
+        return this.http.get<EventLanguage[]>(`${API_BASE}/events/${eventId}/languages`);
+    }
+
+    setLanguages(eventId: string, languages: EventLanguage[]): Observable<unknown> {
         return this.http.put(`${API_BASE}/events/${eventId}/languages`, { languages });
+    }
+
+    getScript(poolId: string): Observable<QuestionScriptDto | null> {
+        return this.http.get<QuestionScriptDto | null>(`${API_BASE}/pools/${poolId}/script`);
     }
 
     setScript(poolId: string, questions: { translations: { locale: string; title: string }[] }[]): Observable<unknown> {

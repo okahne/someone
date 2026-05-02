@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -8,8 +8,26 @@ import {
     TagDto,
     MeetingSpotDto,
     OrganiserDashboard,
+    EventLanguage,
 } from '../core/organiser-api.service';
 import { AdminApiService } from '../core/admin-api.service';
+
+interface QuestionEditModel {
+    translations: Record<string, string>; // locale -> title
+}
+
+interface TagEditModel {
+    defaultLabel: string;
+    translations: Record<string, string>; // locale -> label
+    dirty: boolean;
+}
+
+interface SpotEditModel {
+    title: string;
+    description: string;
+    translations: Record<string, { title: string; description: string }>;
+    dirty: boolean;
+}
 
 @Component({
     selector: 'app-organiser-config',
@@ -30,6 +48,11 @@ import { AdminApiService } from '../core/admin-api.service';
 
         <div class="card">
             <h2>Languages</h2>
+            <p class="muted">
+                Every tag, meeting spot and prompt question accepts a translation
+                for each language listed here. The default language is used as
+                the fallback when a translation is missing.
+            </p>
             <div class="row">
                 <input [(ngModel)]="newLocale" placeholder="locale (e.g. en)" />
                 <label><input type="checkbox" [(ngModel)]="newLocaleDefault" /> default</label>
@@ -40,6 +63,9 @@ import { AdminApiService } from '../core/admin-api.service';
                     <li>{{ l.locale }} @if (l.isDefault) { <strong>(default)</strong> }</li>
                 }
             </ul>
+            @if (languages().length === 0) {
+                <p class="muted">No languages configured yet — add one to enable translations.</p>
+            }
         </div>
 
         <div class="card">
@@ -86,49 +112,165 @@ import { AdminApiService } from '../core/admin-api.service';
 
             <div class="card">
                 <h2>Tags</h2>
-                <div class="row">
-                    <input [(ngModel)]="newTagLabel" placeholder="Tag label" style="flex:1" />
-                    <button (click)="createTag()" [disabled]="!newTagLabel">Add</button>
-                </div>
-                <ul>
-                    @for (t of tags(); track t.id) {
-                        <li>{{ t.defaultLabel }} <button class="danger" (click)="archiveTag(t)">Archive</button></li>
+                <div class="stack">
+                    <div>
+                        <label>Default label ({{ defaultLocale() || '—' }})</label>
+                        <input [(ngModel)]="newTagLabel" placeholder="e.g. Photography" />
+                    </div>
+                    @for (l of nonDefaultLanguages(); track l.locale) {
+                        <div>
+                            <label>{{ l.locale }}</label>
+                            <input
+                                [ngModel]="newTagTranslations[l.locale] ?? ''"
+                                (ngModelChange)="newTagTranslations[l.locale] = $event"
+                                [placeholder]="'Translation (' + l.locale + ')'" />
+                        </div>
                     }
-                </ul>
+                    <button (click)="createTag()" [disabled]="!newTagLabel">Add tag</button>
+                </div>
+
+                @if (tags().length > 0) {
+                    <h3 style="margin-top: var(--space-5)">Existing tags</h3>
+                }
+                @for (t of tags(); track t.id) {
+                    <div class="card" style="margin-top: var(--space-3); background: var(--bg-surface-2)">
+                        <div class="stack">
+                            <div>
+                                <label>Default label ({{ defaultLocale() || '—' }})</label>
+                                <input
+                                    [ngModel]="tagEdits()[t.id]?.defaultLabel ?? t.defaultLabel"
+                                    (ngModelChange)="updateTagEdit(t, 'default', $event)" />
+                            </div>
+                            @for (l of nonDefaultLanguages(); track l.locale) {
+                                <div>
+                                    <label>{{ l.locale }}</label>
+                                    <input
+                                        [ngModel]="tagEdits()[t.id]?.translations[l.locale] ?? ''"
+                                        (ngModelChange)="updateTagEdit(t, l.locale, $event)"
+                                        [placeholder]="'Translation (' + l.locale + ')'" />
+                                </div>
+                            }
+                            <div class="cluster">
+                                <button
+                                    (click)="saveTag(t)"
+                                    [disabled]="!tagEdits()[t.id]?.dirty">Save translations</button>
+                                <button class="danger" (click)="archiveTag(t)">Archive</button>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
 
             <div class="card">
                 <h2>Meeting spots</h2>
-                <div class="row">
-                    <input [(ngModel)]="newSpotTitle" placeholder="Spot title" />
-                    <input [(ngModel)]="newSpotDescription" placeholder="Description" style="flex:1" />
-                    <button (click)="createSpot()" [disabled]="!newSpotTitle">Add</button>
+                <div class="stack">
+                    <div>
+                        <label>Default title ({{ defaultLocale() || '—' }})</label>
+                        <input [(ngModel)]="newSpotTitle" placeholder="e.g. Bar terrace" />
+                    </div>
+                    <div>
+                        <label>Default description</label>
+                        <input [(ngModel)]="newSpotDescription" placeholder="Optional description" />
+                    </div>
+                    @for (l of nonDefaultLanguages(); track l.locale) {
+                        <div class="row">
+                            <div style="flex:1">
+                                <label>{{ l.locale }} title</label>
+                                <input
+                                    [ngModel]="newSpotTranslations[l.locale]?.title ?? ''"
+                                    (ngModelChange)="updateNewSpotTranslation(l.locale, 'title', $event)"
+                                    [placeholder]="'Title (' + l.locale + ')'" />
+                            </div>
+                            <div style="flex:1">
+                                <label>{{ l.locale }} description</label>
+                                <input
+                                    [ngModel]="newSpotTranslations[l.locale]?.description ?? ''"
+                                    (ngModelChange)="updateNewSpotTranslation(l.locale, 'description', $event)"
+                                    [placeholder]="'Description (' + l.locale + ')'" />
+                            </div>
+                        </div>
+                    }
+                    <button (click)="createSpot()" [disabled]="!newSpotTitle">Add spot</button>
                 </div>
-                <table>
-                    <thead><tr><th>Title</th><th>Images</th><th>Upload</th><th></th></tr></thead>
-                    <tbody>
-                        @for (s of spots(); track s.id) {
-                            <tr>
-                                <td>{{ s.title }}</td>
-                                <td>{{ s.images.length }}</td>
-                                <td><input type="file" (change)="uploadImage(s, $event)" /></td>
-                                <td><button class="danger" (click)="archiveSpot(s)">Archive</button></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+
+                @if (spots().length > 0) {
+                    <h3 style="margin-top: var(--space-5)">Existing spots</h3>
+                }
+                @for (s of spots(); track s.id) {
+                    <div class="card" style="margin-top: var(--space-3); background: var(--bg-surface-2)">
+                        <div class="stack">
+                            <div>
+                                <label>Default title ({{ defaultLocale() || '—' }})</label>
+                                <input
+                                    [ngModel]="spotEdits()[s.id]?.title ?? s.title"
+                                    (ngModelChange)="updateSpotEdit(s, 'default', 'title', $event)" />
+                            </div>
+                            <div>
+                                <label>Default description</label>
+                                <input
+                                    [ngModel]="spotEdits()[s.id]?.description ?? (s.description ?? '')"
+                                    (ngModelChange)="updateSpotEdit(s, 'default', 'description', $event)" />
+                            </div>
+                            @for (l of nonDefaultLanguages(); track l.locale) {
+                                <div class="row">
+                                    <div style="flex:1">
+                                        <label>{{ l.locale }} title</label>
+                                        <input
+                                            [ngModel]="spotEdits()[s.id]?.translations[l.locale]?.title ?? ''"
+                                            (ngModelChange)="updateSpotEdit(s, l.locale, 'title', $event)" />
+                                    </div>
+                                    <div style="flex:1">
+                                        <label>{{ l.locale }} description</label>
+                                        <input
+                                            [ngModel]="spotEdits()[s.id]?.translations[l.locale]?.description ?? ''"
+                                            (ngModelChange)="updateSpotEdit(s, l.locale, 'description', $event)" />
+                                    </div>
+                                </div>
+                            }
+                            <div class="row">
+                                <span class="muted">Images: {{ s.images.length }}</span>
+                                <input type="file" (change)="uploadImage(s, $event)" />
+                            </div>
+                            <div class="cluster">
+                                <button
+                                    (click)="saveSpot(s)"
+                                    [disabled]="!spotEdits()[s.id]?.dirty">Save translations</button>
+                                <button class="danger" (click)="archiveSpot(s)">Archive</button>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
 
             <div class="card">
                 <h2>Question script</h2>
                 @for (q of script(); track $index) {
-                    <div class="row">
-                        <input [(ngModel)]="q.text" placeholder="Prompt" style="flex:1" />
-                        <button class="danger" (click)="removeQuestion($index)">Remove</button>
+                    <div class="card" style="margin-bottom: var(--space-3); background: var(--bg-surface-2)">
+                        <div class="stack">
+                            <div>
+                                <label>{{ defaultLocale() || 'default' }}</label>
+                                <input
+                                    [ngModel]="q.translations[defaultLocale()] ?? ''"
+                                    (ngModelChange)="updateQuestionTranslation($index, defaultLocale(), $event)"
+                                    placeholder="Prompt" />
+                            </div>
+                            @for (l of nonDefaultLanguages(); track l.locale) {
+                                <div>
+                                    <label>{{ l.locale }}</label>
+                                    <input
+                                        [ngModel]="q.translations[l.locale] ?? ''"
+                                        (ngModelChange)="updateQuestionTranslation($index, l.locale, $event)"
+                                        [placeholder]="'Translation (' + l.locale + ')'" />
+                                </div>
+                            }
+                            <button class="danger" (click)="removeQuestion($index)">Remove question</button>
+                        </div>
                     </div>
                 }
-                <button (click)="addQuestion()">Add question</button>
-                <button (click)="saveScript()">Save script</button>
+                <div class="cluster">
+                    <button class="secondary" (click)="addQuestion()">Add question</button>
+                    <button (click)="saveScript()">Save script</button>
+                </div>
             </div>
         }
 
@@ -157,22 +299,34 @@ import { AdminApiService } from '../core/admin-api.service';
 })
 export class OrganiserConfigComponent implements OnInit {
     eventId = '';
-    languages = signal<{ locale: string; isDefault: boolean }[]>([]);
+    languages = signal<EventLanguage[]>([]);
     pools = signal<PoolDto[]>([]);
     tags = signal<TagDto[]>([]);
     spots = signal<MeetingSpotDto[]>([]);
     dashboard = signal<OrganiserDashboard | null>(null);
     selectedPoolId = signal<string | null>(null);
     selectedPool = signal<PoolDto | null>(null);
-    script = signal<{ text: string }[]>([]);
+    script = signal<QuestionEditModel[]>([]);
     poolError = signal<string | null>(null);
+
+    /** Per-tag edit buffer keyed by tag id. */
+    tagEdits = signal<Record<string, TagEditModel>>({});
+    /** Per-spot edit buffer keyed by spot id. */
+    spotEdits = signal<Record<string, SpotEditModel>>({});
+
+    /** Default locale (used as the canonical label/title). */
+    defaultLocale = computed(() => this.languages().find((l) => l.isDefault)?.locale ?? '');
+    /** Languages other than the default — these get the "translation" inputs. */
+    nonDefaultLanguages = computed(() => this.languages().filter((l) => !l.isDefault));
 
     newLocale = '';
     newLocaleDefault = false;
     newPoolTitle = '';
     newTagLabel = '';
+    newTagTranslations: Record<string, string> = {};
     newSpotTitle = '';
     newSpotDescription = '';
+    newSpotTranslations: Record<string, { title: string; description: string }> = {};
     poolEdit = {
         allowRematch: false,
         meetingTimeLimitMinutes: 20,
@@ -190,6 +344,7 @@ export class OrganiserConfigComponent implements OnInit {
 
     ngOnInit(): void {
         this.eventId = this.route.snapshot.paramMap.get('id') ?? '';
+        this.api.listLanguages(this.eventId).subscribe((l) => this.languages.set(l));
         this.refreshPools();
         this.refreshDashboard();
         this.admin.getEvent(this.eventId).subscribe((e) => { this.eventTimezone = e.timezone; });
@@ -242,9 +397,20 @@ export class OrganiserConfigComponent implements OnInit {
             meetingTimeLimitMinutes: p.meetingTimeLimitMinutes ?? 20,
             cron: p.callSchedule.cron,
         };
-        this.api.listTags(p.id).subscribe((t) => this.tags.set(t));
-        this.api.listSpots(p.id).subscribe((s) => this.spots.set(s));
-        this.script.set([]);
+        this.api.listTags(p.id).subscribe((t) => {
+            this.tags.set(t);
+            this.tagEdits.set(this.buildTagEdits(t));
+        });
+        this.api.listSpots(p.id).subscribe((s) => {
+            this.spots.set(s);
+            this.spotEdits.set(this.buildSpotEdits(s));
+        });
+        this.api.getScript(p.id).subscribe((s) => {
+            const questions = (s?.questions ?? []).map((q) => ({
+                translations: Object.fromEntries(q.translations.map((tr) => [tr.locale, tr.title])),
+            }));
+            this.script.set(questions);
+        });
     }
 
     savePool(): void {
@@ -265,36 +431,177 @@ export class OrganiserConfigComponent implements OnInit {
         });
     }
 
+    // -- Tags ---------------------------------------------------------------
+
+    private buildTagEdits(tags: TagDto[]): Record<string, TagEditModel> {
+        const out: Record<string, TagEditModel> = {};
+        for (const t of tags) {
+            const translations: Record<string, string> = {};
+            for (const tr of t.translations) translations[tr.locale] = tr.label;
+            out[t.id] = { defaultLabel: t.defaultLabel, translations, dirty: false };
+        }
+        return out;
+    }
+
+    updateTagEdit(t: TagDto, locale: 'default' | string, value: string): void {
+        const next = { ...this.tagEdits() };
+        const current = next[t.id] ?? { defaultLabel: t.defaultLabel, translations: {}, dirty: false };
+        if (locale === 'default') {
+            next[t.id] = { ...current, defaultLabel: value, dirty: true };
+        } else {
+            next[t.id] = {
+                ...current,
+                translations: { ...current.translations, [locale]: value },
+                dirty: true,
+            };
+        }
+        this.tagEdits.set(next);
+    }
+
     createTag(): void {
         const id = this.selectedPoolId();
         if (!id) return;
-        this.api.createTag(id, this.newTagLabel).subscribe(() => {
+        const translations = this.nonDefaultLanguages()
+            .map((l) => ({ locale: l.locale, label: (this.newTagTranslations[l.locale] ?? '').trim() }))
+            .filter((t) => t.label.length > 0);
+        this.api.createTag(id, this.newTagLabel, translations).subscribe(() => {
             this.newTagLabel = '';
-            this.api.listTags(id).subscribe((t) => this.tags.set(t));
+            this.newTagTranslations = {};
+            this.api.listTags(id).subscribe((tags) => {
+                this.tags.set(tags);
+                this.tagEdits.set(this.buildTagEdits(tags));
+            });
+        });
+    }
+
+    saveTag(t: TagDto): void {
+        const edit = this.tagEdits()[t.id];
+        if (!edit) return;
+        const translations = Object.entries(edit.translations)
+            .map(([locale, label]) => ({ locale, label: label.trim() }))
+            .filter((tr) => tr.label.length > 0);
+        this.api.updateTag(t.id, { defaultLabel: edit.defaultLabel, translations }).subscribe(() => {
+            const id = this.selectedPoolId();
+            if (id) this.api.listTags(id).subscribe((tags) => {
+                this.tags.set(tags);
+                this.tagEdits.set(this.buildTagEdits(tags));
+            });
         });
     }
 
     archiveTag(t: TagDto): void {
         this.api.archiveTag(t.id).subscribe(() => {
             const id = this.selectedPoolId();
-            if (id) this.api.listTags(id).subscribe((tags) => this.tags.set(tags));
+            if (id) this.api.listTags(id).subscribe((tags) => {
+                this.tags.set(tags);
+                this.tagEdits.set(this.buildTagEdits(tags));
+            });
         });
+    }
+
+    // -- Spots --------------------------------------------------------------
+
+    private buildSpotEdits(spots: MeetingSpotDto[]): Record<string, SpotEditModel> {
+        const out: Record<string, SpotEditModel> = {};
+        for (const s of spots) {
+            const translations: Record<string, { title: string; description: string }> = {};
+            for (const tr of s.translations) {
+                translations[tr.locale] = { title: tr.title, description: tr.description ?? '' };
+            }
+            out[s.id] = {
+                title: s.title,
+                description: s.description ?? '',
+                translations,
+                dirty: false,
+            };
+        }
+        return out;
+    }
+
+    updateNewSpotTranslation(locale: string, field: 'title' | 'description', value: string): void {
+        const current = this.newSpotTranslations[locale] ?? { title: '', description: '' };
+        this.newSpotTranslations = {
+            ...this.newSpotTranslations,
+            [locale]: { ...current, [field]: value },
+        };
+    }
+
+    updateSpotEdit(s: MeetingSpotDto, locale: 'default' | string, field: 'title' | 'description', value: string): void {
+        const next = { ...this.spotEdits() };
+        const current = next[s.id] ?? {
+            title: s.title,
+            description: s.description ?? '',
+            translations: {},
+            dirty: false,
+        };
+        if (locale === 'default') {
+            next[s.id] = { ...current, [field]: value, dirty: true };
+        } else {
+            const trCurrent = current.translations[locale] ?? { title: '', description: '' };
+            next[s.id] = {
+                ...current,
+                translations: {
+                    ...current.translations,
+                    [locale]: { ...trCurrent, [field]: value },
+                },
+                dirty: true,
+            };
+        }
+        this.spotEdits.set(next);
     }
 
     createSpot(): void {
         const id = this.selectedPoolId();
         if (!id) return;
-        this.api.createSpot(id, this.newSpotTitle, this.newSpotDescription || undefined).subscribe(() => {
+        const translations = this.nonDefaultLanguages()
+            .map((l) => {
+                const tr = this.newSpotTranslations[l.locale];
+                return tr && tr.title.trim().length > 0
+                    ? { locale: l.locale, title: tr.title.trim(), description: tr.description.trim() || null }
+                    : null;
+            })
+            .filter((t): t is { locale: string; title: string; description: string | null } => t !== null);
+        this.api.createSpot(id, this.newSpotTitle, this.newSpotDescription || undefined, translations).subscribe(() => {
             this.newSpotTitle = '';
             this.newSpotDescription = '';
-            this.api.listSpots(id).subscribe((s) => this.spots.set(s));
+            this.newSpotTranslations = {};
+            this.api.listSpots(id).subscribe((s) => {
+                this.spots.set(s);
+                this.spotEdits.set(this.buildSpotEdits(s));
+            });
+        });
+    }
+
+    saveSpot(s: MeetingSpotDto): void {
+        const edit = this.spotEdits()[s.id];
+        if (!edit) return;
+        const translations = Object.entries(edit.translations)
+            .map(([locale, tr]) => ({
+                locale,
+                title: tr.title.trim(),
+                description: tr.description.trim() || null,
+            }))
+            .filter((t) => t.title.length > 0);
+        this.api.updateSpot(s.id, {
+            title: edit.title,
+            description: edit.description,
+            translations,
+        }).subscribe(() => {
+            const id = this.selectedPoolId();
+            if (id) this.api.listSpots(id).subscribe((spots) => {
+                this.spots.set(spots);
+                this.spotEdits.set(this.buildSpotEdits(spots));
+            });
         });
     }
 
     archiveSpot(s: MeetingSpotDto): void {
         this.api.archiveSpot(s.id).subscribe(() => {
             const id = this.selectedPoolId();
-            if (id) this.api.listSpots(id).subscribe((spots) => this.spots.set(spots));
+            if (id) this.api.listSpots(id).subscribe((spots) => {
+                this.spots.set(spots);
+                this.spotEdits.set(this.buildSpotEdits(spots));
+            });
         });
     }
 
@@ -304,21 +611,47 @@ export class OrganiserConfigComponent implements OnInit {
         if (!file) return;
         this.api.uploadSpotImage(s.id, file).subscribe(() => {
             const id = this.selectedPoolId();
-            if (id) this.api.listSpots(id).subscribe((spots) => this.spots.set(spots));
+            if (id) this.api.listSpots(id).subscribe((spots) => {
+                this.spots.set(spots);
+                this.spotEdits.set(this.buildSpotEdits(spots));
+            });
         });
     }
 
-    addQuestion(): void { this.script.set([...this.script(), { text: '' }]); }
+    // -- Question script ----------------------------------------------------
+
+    addQuestion(): void {
+        this.script.set([...this.script(), { translations: {} }]);
+    }
+
     removeQuestion(i: number): void {
         const copy = [...this.script()];
         copy.splice(i, 1);
         this.script.set(copy);
     }
+
+    updateQuestionTranslation(index: number, locale: string, value: string): void {
+        const copy = this.script().map((q, i) =>
+            i === index
+                ? { translations: { ...q.translations, [locale]: value } }
+                : q,
+        );
+        this.script.set(copy);
+    }
+
     saveScript(): void {
         const id = this.selectedPoolId();
         if (!id) return;
-        const questions = this.script().map((q) => ({ translations: [{ locale: 'en', title: q.text }] }));
-        this.api.setScript(id, questions).subscribe();
+        const defaultLocale = this.defaultLocale();
+        const questions = this.script().map((q) => ({
+            translations: Object.entries(q.translations)
+                .map(([locale, title]) => ({ locale, title: title.trim() }))
+                .filter((tr) => tr.title.length > 0),
+        }));
+        // Each question must have at least one translation; if the default
+        // locale is missing, drop the question to avoid backend rejection.
+        const valid = questions.filter((q) => q.translations.some((t) => t.locale === defaultLocale && t.title));
+        this.api.setScript(id, valid).subscribe();
     }
 
     refreshDashboard(): void {

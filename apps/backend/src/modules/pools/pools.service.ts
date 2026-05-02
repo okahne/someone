@@ -254,8 +254,21 @@ export class PoolsService {
                 poolId,
                 title: dto.title,
                 description: dto.description ?? null,
+                ...(dto.translations?.length
+                    ? {
+                        translations: {
+                            createMany: {
+                                data: dto.translations.map((t) => ({
+                                    locale: t.locale,
+                                    title: t.title,
+                                    description: t.description ?? null,
+                                })),
+                            },
+                        },
+                    }
+                    : {}),
             },
-            include: { images: true },
+            include: { images: true, translations: true },
         });
         await this.audit.record({ actorId, action: 'spot.create', entityType: 'MeetingSpot', entityId: spot.id });
         return this.toSpotDto(spot);
@@ -264,21 +277,38 @@ export class PoolsService {
     async listSpots(poolId: string, includeArchived = false): Promise<MeetingSpotDto[]> {
         const rows = await this.prisma.meetingSpot.findMany({
             where: { poolId, ...(includeArchived ? {} : { archivedAt: null }) },
-            include: { images: true },
+            include: { images: true, translations: true },
         });
         return rows.map((r) => this.toSpotDto(r));
     }
 
     async updateSpot(actorId: string, id: string, dto: UpdateMeetingSpotDto): Promise<MeetingSpotDto> {
-        const spot = await this.prisma.meetingSpot.update({
-            where: { id },
-            data: {
-                ...(dto.title !== undefined ? { title: dto.title } : {}),
-                ...(dto.description !== undefined ? { description: dto.description } : {}),
-            },
-            include: { images: true },
+        await this.prisma.$transaction(async (tx) => {
+            await tx.meetingSpot.update({
+                where: { id },
+                data: {
+                    ...(dto.title !== undefined ? { title: dto.title } : {}),
+                    ...(dto.description !== undefined ? { description: dto.description } : {}),
+                },
+            });
+            if (dto.translations) {
+                await tx.meetingSpotTranslation.deleteMany({ where: { meetingSpotId: id } });
+                if (dto.translations.length > 0) {
+                    await tx.meetingSpotTranslation.createMany({
+                        data: dto.translations.map((t) => ({
+                            meetingSpotId: id,
+                            locale: t.locale,
+                            title: t.title,
+                            description: t.description ?? null,
+                        })),
+                    });
+                }
+            }
         });
         await this.audit.record({ actorId, action: 'spot.update', entityType: 'MeetingSpot', entityId: id });
+        const spot = await this.prisma.meetingSpot.findUniqueOrThrow({
+            where: { id }, include: { images: true, translations: true },
+        });
         return this.toSpotDto(spot);
     }
 
@@ -305,7 +335,7 @@ export class PoolsService {
         });
         await this.audit.record({ actorId, action: 'spot.image.add', entityType: 'MeetingSpot', entityId: spotId });
         const spot = await this.prisma.meetingSpot.findUniqueOrThrow({
-            where: { id: spotId }, include: { images: true },
+            where: { id: spotId }, include: { images: true, translations: true },
         });
         return this.toSpotDto(spot);
     }
@@ -325,6 +355,7 @@ export class PoolsService {
         description: string | null;
         archivedAt: Date | null;
         images: { id: string; storageKey: string; mimeType: string; sizeBytes: number; uploadedAt: Date }[];
+        translations?: { locale: string; title: string; description: string | null }[];
     }): MeetingSpotDto {
         return {
             id: s.id,
@@ -337,6 +368,11 @@ export class PoolsService {
                 mimeType: i.mimeType,
                 sizeBytes: i.sizeBytes,
                 uploadedAt: i.uploadedAt.toISOString(),
+            })),
+            translations: (s.translations ?? []).map((t) => ({
+                locale: t.locale,
+                title: t.title,
+                description: t.description,
             })),
             archivedAt: s.archivedAt?.toISOString() ?? null,
         };
