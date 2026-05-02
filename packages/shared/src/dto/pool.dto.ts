@@ -23,15 +23,11 @@ export class TranslationDto {
     title!: string;
 }
 
-/** Pool call schedule — cron-based with timezone. */
+/** Pool call schedule — cron expression (timezone is configured at event level). */
 export class PoolCallScheduleDto {
     @IsString()
     @Length(1, 200)
     cron!: string;
-
-    @IsString()
-    @Length(1, 100)
-    timezone!: string;
 }
 
 /** `POST /events/:id/pools` request body. */

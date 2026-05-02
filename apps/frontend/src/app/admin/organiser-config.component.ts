@@ -9,6 +9,7 @@ import {
     MeetingSpotDto,
     OrganiserDashboard,
 } from '../core/organiser-api.service';
+import { AdminApiService } from '../core/admin-api.service';
 
 @Component({
     selector: 'app-organiser-config',
@@ -16,6 +17,16 @@ import {
     imports: [CommonModule, FormsModule],
     template: `
         <h1>Configure event</h1>
+
+        <div class="card">
+            <h2>Event settings</h2>
+            <label>
+                Timezone
+                <input [(ngModel)]="eventTimezone" placeholder="UTC" />
+            </label>
+            <button (click)="saveEventSettings()" [disabled]="!eventTimezone">Save</button>
+            @if (eventSettingsMessage()) { <p class="muted">{{ eventSettingsMessage() }}</p> }
+        </div>
 
         <div class="card">
             <h2>Languages</h2>
@@ -68,10 +79,6 @@ import {
                     <label>
                         Call cron
                         <input [(ngModel)]="poolEdit.cron" placeholder="*/15 * * * *" />
-                    </label>
-                    <label>
-                        Timezone
-                        <input [(ngModel)]="poolEdit.timezone" placeholder="UTC" />
                     </label>
                     <button (click)="savePool()">Save pool</button>
                 </div>
@@ -135,7 +142,7 @@ import {
                     <tbody>
                         @for (c of d.poolCounts; track c.poolId) {
                             <tr>
-                                <td class="muted">{{ c.poolId.slice(0, 8) }}</td>
+                                <td class="muted">{{ c.poolName ?? c.poolId.slice(0, 8) }}</td>
                                 <td>{{ c.available }}</td>
                                 <td>{{ c.searching }}</td>
                                 <td>{{ c.booked }}</td>
@@ -147,7 +154,6 @@ import {
             }
         </div>
     `,
-    styles: [`tr.selected { background: #eef; }`],
 })
 export class OrganiserConfigComponent implements OnInit {
     eventId = '';
@@ -171,11 +177,14 @@ export class OrganiserConfigComponent implements OnInit {
         allowRematch: false,
         meetingTimeLimitMinutes: 20,
         cron: '*/15 * * * *',
-        timezone: 'UTC',
     };
+
+    eventTimezone = 'UTC';
+    eventSettingsMessage = signal<string | null>(null);
 
     constructor(
         private readonly api: OrganiserApiService,
+        private readonly admin: AdminApiService,
         private readonly route: ActivatedRoute,
     ) { }
 
@@ -183,6 +192,16 @@ export class OrganiserConfigComponent implements OnInit {
         this.eventId = this.route.snapshot.paramMap.get('id') ?? '';
         this.refreshPools();
         this.refreshDashboard();
+        this.admin.getEvent(this.eventId).subscribe((e) => { this.eventTimezone = e.timezone; });
+    }
+
+    saveEventSettings(): void {
+        this.eventSettingsMessage.set(null);
+        this.admin.updateEvent(this.eventId, { timezone: this.eventTimezone }).subscribe({
+            next: () => this.eventSettingsMessage.set('Saved'),
+            error: (e: { error?: { message?: string } }) =>
+                this.eventSettingsMessage.set(e.error?.message ?? 'Failed to save'),
+        });
     }
 
     addLanguage(): void {
@@ -207,7 +226,7 @@ export class OrganiserConfigComponent implements OnInit {
             defaultTitle: this.newPoolTitle,
             translations: [],
             allowRematch: false,
-            callSchedule: { cron: '*/15 * * * *', timezone: 'UTC' },
+            callSchedule: { cron: '*/15 * * * *' },
             meetingTimeLimitMinutes: 20,
         }).subscribe({
             next: () => { this.newPoolTitle = ''; this.refreshPools(); },
@@ -222,7 +241,6 @@ export class OrganiserConfigComponent implements OnInit {
             allowRematch: p.allowRematch,
             meetingTimeLimitMinutes: p.meetingTimeLimitMinutes ?? 20,
             cron: p.callSchedule.cron,
-            timezone: p.callSchedule.timezone,
         };
         this.api.listTags(p.id).subscribe((t) => this.tags.set(t));
         this.api.listSpots(p.id).subscribe((s) => this.spots.set(s));
@@ -235,7 +253,7 @@ export class OrganiserConfigComponent implements OnInit {
         this.api.updatePool(id, {
             allowRematch: this.poolEdit.allowRematch,
             meetingTimeLimitMinutes: this.poolEdit.meetingTimeLimitMinutes,
-            callSchedule: { cron: this.poolEdit.cron, timezone: this.poolEdit.timezone },
+            callSchedule: { cron: this.poolEdit.cron },
         }).subscribe(() => this.refreshPools());
     }
 

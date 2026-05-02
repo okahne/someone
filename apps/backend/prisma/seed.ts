@@ -70,7 +70,7 @@ async function main(): Promise<void> {
             eventId: event.id,
             defaultTitle: 'General Pool',
             allowRematch: false,
-            callSchedule: { cron: '*/15 * * * *', timezone: 'UTC' },
+            callSchedule: { cron: '*/15 * * * *' },
             meetingTimeLimitMinutes: 15,
         },
     });

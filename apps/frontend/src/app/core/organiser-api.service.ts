@@ -9,7 +9,7 @@ export interface PoolDto {
     defaultTitle: string;
     translations: { locale: string; title: string }[];
     allowRematch: boolean;
-    callSchedule: { cron: string; timezone: string };
+    callSchedule: { cron: string };
     meetingTimeLimitMinutes?: number | null;
     archivedAt?: string | null;
 }
@@ -33,7 +33,7 @@ export interface MeetingSpotDto {
 
 export interface OrganiserDashboard {
     eventId: string;
-    poolCounts: { poolId: string; available: number; searching: number; booked: number; meeting: number }[];
+    poolCounts: { poolId: string; poolName?: string; available: number; searching: number; booked: number; meeting: number }[];
     activeMatchIds: string[];
     recentMatchRuns: { id: string; poolId: string; trigger: string; ranAt: string; totalBooked: number; totalMatched: number; totalUnmatched: number; spotsShortfall: number }[];
 }

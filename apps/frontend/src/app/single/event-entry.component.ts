@@ -10,25 +10,28 @@ import { PublicEvent, SingleApiService } from '../core/single-api.service';
     standalone: true,
     imports: [CommonModule, FormsModule],
     template: `
-        @if (event(); as e) {
-            <div class="card">
-                <h1>{{ e.title }}</h1>
-                <p>{{ e.description }}</p>
-                <p class="muted">Status: {{ e.status }}</p>
+        <div class="single-shell">
+            <div class="brand-header">Blind Date</div>
+            @if (event(); as e) {
+                <div class="card card--hero">
+                    <h1>{{ e.title }}</h1>
+                    <p>{{ e.description }}</p>
+                    <p><span class="badge {{ e.status.toLowerCase() }}">{{ e.status }}</span></p>
 
-                @if (e.status === 'CLOSED' || e.status === 'ARCHIVED') {
-                    <p class="error">This event is no longer accepting participants.</p>
-                } @else {
-                    <h2>Join as guest</h2>
-                    <div class="row">
-                        <input [(ngModel)]="displayName" placeholder="Display name" style="flex:1" />
-                        <button (click)="joinAnonymous()" [disabled]="!displayName">Join</button>
-                    </div>
-                    <p>Or sign in with <a [href]="ssoLink('google')">Google</a> or <a [href]="ssoLink('discord')">Discord</a>.</p>
-                }
-            </div>
-        }
-        @if (error()) { <p class="error">{{ error() }}</p> }
+                    @if (e.status === 'CLOSED' || e.status === 'ARCHIVED') {
+                        <p class="error">This event is no longer accepting participants.</p>
+                    } @else {
+                        <h2>Join as guest</h2>
+                        <div class="row">
+                            <input [(ngModel)]="displayName" placeholder="Display name" style="flex:1" />
+                            <button (click)="joinAnonymous()" [disabled]="!displayName">Join</button>
+                        </div>
+                        <p class="muted">Or sign in with <a [href]="ssoLink('google')">Google</a> or <a [href]="ssoLink('discord')">Discord</a>.</p>
+                    }
+                </div>
+            }
+            @if (error()) { <p class="error">{{ error() }}</p> }
+        </div>
     `,
 })
 export class EventEntryComponent implements OnInit {

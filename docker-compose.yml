@@ -35,8 +35,8 @@ services:
 
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
       target: development
     container_name: someone_backend
     restart: unless-stopped
@@ -55,8 +55,10 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - ./apps/backend/src:/app/src:ro
+      - ./apps/backend/src:/workspace/apps/backend/src:ro
+      - ./apps/backend/prisma:/workspace/apps/backend/prisma:ro
       - ./packages/shared/src:/workspace/packages/shared/src:ro
+    command: sh -c "pnpm exec prisma migrate deploy && pnpm start:dev"
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health || exit 1']
       interval: 15s
@@ -66,8 +68,8 @@ services:
 
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
       target: development
     container_name: someone_frontend
     restart: unless-stopped
@@ -75,10 +77,11 @@ services:
       - backend
     environment:
       NODE_ENV: development
+      API_PROXY_TARGET: http://backend:3000
     ports:
       - '4200:4200'
     volumes:
-      - ./apps/frontend/src:/app/src:ro
+      - ./apps/frontend/src:/workspace/apps/frontend/src:ro
 
 volumes:
   postgres_data:

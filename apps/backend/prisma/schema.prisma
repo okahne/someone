@@ -2,7 +2,8 @@
 // Reflects docs/data-model.md. Snake_case columns/tables, UUID primary keys.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -117,6 +118,7 @@ model Event {
   title       String
   description String?
   status      EventStatus @default(DRAFT)
+  timezone    String      @default("UTC")
   createdBy   String      @map("created_by") @db.Uuid
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")

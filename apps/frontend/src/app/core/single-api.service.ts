@@ -68,6 +68,10 @@ export class SingleApiService {
         return this.http.get<{ id: string; defaultLabel: string }[]>(`${API_BASE}/pools/${poolId}/tags`);
     }
 
+    listEventPools(eventId: string): Observable<{ id: string; defaultTitle: string }[]> {
+        return this.http.get<{ id: string; defaultTitle: string }[]>(`${API_BASE}/events/${eventId}/pools`);
+    }
+
     confirmArrival(matchId: string): Observable<unknown> {
         return this.http.post(`${API_BASE}/matches/${matchId}/confirm`, {});
     }

@@ -56,6 +56,7 @@ export class EventsService {
         title: string;
         description: string | null;
         status: EventStatus;
+        timezone: string;
         createdBy: string;
         createdAt: Date;
         updatedAt: Date;
@@ -66,6 +67,7 @@ export class EventsService {
             title: e.title,
             description: e.description,
             status: e.status as unknown as EventDto['status'],
+            timezone: e.timezone,
             createdBy: e.createdBy,
             createdAt: e.createdAt.toISOString(),
             updatedAt: e.updatedAt.toISOString(),
@@ -79,6 +81,7 @@ export class EventsService {
                 title: dto.title,
                 description: dto.description ?? null,
                 status: EventStatus.DRAFT,
+                ...(dto.timezone ? { timezone: dto.timezone } : {}),
                 createdBy: actorId,
             },
         });
@@ -120,6 +123,7 @@ export class EventsService {
             data: {
                 ...(dto.title !== undefined ? { title: dto.title } : {}),
                 ...(dto.description !== undefined ? { description: dto.description } : {}),
+                ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
             },
         });
         await this.audit.record({

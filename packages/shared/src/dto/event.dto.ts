@@ -22,6 +22,11 @@ export class CreateEventDto {
     @IsString()
     @Length(0, 2000)
     description?: string | null;
+
+    @IsOptional()
+    @IsString()
+    @Length(1, 100)
+    timezone?: string;
 }
 
 /** `PATCH /events/:id` request body. */
@@ -35,6 +40,11 @@ export class UpdateEventDto {
     @IsString()
     @Length(0, 2000)
     description?: string | null;
+
+    @IsOptional()
+    @IsString()
+    @Length(1, 100)
+    timezone?: string;
 }
 
 /** `PATCH /events/:id/status` request body. */
@@ -60,6 +70,9 @@ export class EventDto {
 
     @IsEnum(EventStatus)
     status!: EventStatus;
+
+    @IsString()
+    timezone!: string;
 
     @IsUUID()
     createdBy!: string;

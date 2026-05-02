@@ -1,12 +1,13 @@
 # ─── Build stage ──────────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
 
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /workspace
 
 # Copy workspace manifests first for layer caching
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/backend/package.json ./apps/backend/
 
@@ -19,16 +20,18 @@ COPY apps/backend/ ./apps/backend/
 
 # Build shared first, then backend
 RUN pnpm --filter @someone/shared build
+RUN pnpm --filter @someone/backend exec prisma generate
 RUN pnpm --filter @someone/backend build
 
 # ─── Development stage ────────────────────────────────────────────────────────
 FROM node:20-alpine AS development
 
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /workspace
 
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/backend/package.json ./apps/backend/
 
@@ -47,6 +50,7 @@ CMD ["pnpm", "start:dev"]
 # ─── Production runtime stage ─────────────────────────────────────────────────
 FROM node:20-alpine AS production
 
+RUN apk add --no-cache openssl
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app

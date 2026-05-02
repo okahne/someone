@@ -13,83 +13,96 @@ interface Tag { id: string; defaultLabel: string }
     standalone: true,
     imports: [CommonModule, FormsModule],
     template: `
-        <div class="card">
-            <div class="row">
-                <strong>State:</strong> {{ snapshot()?.state ?? '—' }}
-                <span class="muted" style="margin-left:auto">{{ wsConnected() ? '● online' : '○ offline' }}</span>
+        <div class="single-shell">
+            <div class="brand-header">Blind Date</div>
+
+            <div class="card">
+                <div class="row">
+                    <strong>State:</strong> {{ snapshot()?.state ?? '—' }}
+                    <span class="muted" style="margin-left:auto">{{ wsConnected() ? '● online' : '○ offline' }}</span>
+                </div>
             </div>
+
+            <!-- Pool selection -->
+            @if (snapshot() && !snapshot()!.poolId && !activeMatch()) {
+                <div class="card">
+                    <h2>Choose a pool</h2>
+                    <div class="cluster">
+                        @for (p of pools(); track p.id) {
+                            <button (click)="join(p.id)">{{ p.defaultTitle }}</button>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Tag + mode -->
+            @if (snapshot()?.poolId && !activeMatch() && snapshot()!.state !== 'MOVING' && snapshot()!.state !== 'MEETING') {
+                <div class="card">
+                    <h2>Your tags</h2>
+                    <div class="cluster">
+                        @for (t of tags(); track t.id) {
+                            <label>
+                                <input type="checkbox"
+                                       [checked]="ownTags().includes(t.id)"
+                                       (change)="toggleOwn(t.id)" />
+                                {{ t.defaultLabel }}
+                            </label>
+                        }
+                    </div>
+                    <p><button class="secondary" (click)="saveOwn()">Save tags</button></p>
+
+                    <h2>Looking for</h2>
+                    <div class="cluster">
+                        @for (t of tags(); track t.id) {
+                            <label>
+                                <input type="checkbox"
+                                       [checked]="mandatory().includes(t.id)"
+                                       (change)="toggleMandatory(t.id)" />
+                                {{ t.defaultLabel }}
+                            </label>
+                        }
+                    </div>
+
+                    <h2>Mode</h2>
+                    <div class="cluster">
+                        <button (click)="mode('AVAILABLE')">Available now</button>
+                        <button (click)="mode('SEARCHING')">Search now</button>
+                        <button class="secondary" (click)="mode('BOOKED')">Book next call</button>
+                    </div>
+                    @if (modeError()) { <p class="error">{{ modeError() }}</p> }
+                </div>
+            }
+
+            <!-- Match assigned (MOVING) -->
+            @if (activeMatch(); as m) {
+                <div class="card card--hero">
+                    <h2>Match found</h2>
+                    <p>Meeting partner: <strong>{{ m.partner.displayName }}</strong></p>
+                    <p>Spot: <strong>{{ m.meetingSpot.title }}</strong></p>
+                    <p class="muted">{{ m.meetingSpot.description }}</p>
+                    @if (snapshot()?.state === 'MOVING') {
+                        <button (click)="confirm()">I'm here</button>
+                    }
+                    @if (snapshot()?.state === 'MEETING') {
+                        <p>Meeting in progress @if (warning()) { <strong>(2 minutes left!)</strong> }</p>
+                        <button class="danger" (click)="end()">End early</button>
+                    }
+                </div>
+            }
+
+            @if (snapshot()?.state === 'COMPLETED') {
+                <div class="card">
+                    <h2>Meeting ended</h2>
+                    <p>Choose your next mode above to find another match.</p>
+                </div>
+            }
+            @if (snapshot()?.state === 'UNMATCHED') {
+                <div class="card">
+                    <h2>No matches found</h2>
+                    <p>Try changing your tag preferences or wait for the next call.</p>
+                </div>
+            }
         </div>
-
-        <!-- Pool selection -->
-        @if (snapshot() && !snapshot()!.poolId && !activeMatch()) {
-            <div class="card">
-                <h2>Choose a pool</h2>
-                @for (p of pools(); track p.id) {
-                    <button (click)="join(p.id)" style="margin-right:.5rem">{{ p.defaultTitle }}</button>
-                }
-            </div>
-        }
-
-        <!-- Tag + mode -->
-        @if (snapshot()?.poolId && !activeMatch() && snapshot()!.state !== 'MOVING' && snapshot()!.state !== 'MEETING') {
-            <div class="card">
-                <h2>Your tags</h2>
-                @for (t of tags(); track t.id) {
-                    <label style="display:inline-block; margin-right:1rem">
-                        <input type="checkbox"
-                               [checked]="ownTags().includes(t.id)"
-                               (change)="toggleOwn(t.id)" />
-                        {{ t.defaultLabel }}
-                    </label>
-                }
-                <p><button (click)="saveOwn()">Save tags</button></p>
-
-                <h2>Looking for</h2>
-                @for (t of tags(); track t.id) {
-                    <label style="display:inline-block; margin-right:1rem">
-                        <input type="checkbox"
-                               [checked]="mandatory().includes(t.id)"
-                               (change)="toggleMandatory(t.id)" />
-                        {{ t.defaultLabel }}
-                    </label>
-                }
-                <h2>Mode</h2>
-                <button (click)="mode('AVAILABLE')">Available now</button>
-                <button (click)="mode('SEARCHING')">Search now</button>
-                <button (click)="mode('BOOKED')">Book next call</button>
-                @if (modeError()) { <p class="error">{{ modeError() }}</p> }
-            </div>
-        }
-
-        <!-- Match assigned (MOVING) -->
-        @if (activeMatch(); as m) {
-            <div class="card">
-                <h2>Match found!</h2>
-                <p>Meeting partner: <strong>{{ m.partner.displayName }}</strong></p>
-                <p>Spot: <strong>{{ m.meetingSpot.title }}</strong></p>
-                <p class="muted">{{ m.meetingSpot.description }}</p>
-                @if (snapshot()?.state === 'MOVING') {
-                    <button (click)="confirm()">I'm here</button>
-                }
-                @if (snapshot()?.state === 'MEETING') {
-                    <p>Meeting in progress @if (warning()) { <strong>(2 minutes left!)</strong> }</p>
-                    <button class="danger" (click)="end()">End early</button>
-                }
-            </div>
-        }
-
-        @if (snapshot()?.state === 'COMPLETED') {
-            <div class="card">
-                <h2>Meeting ended</h2>
-                <p>Choose your next mode above to find another match.</p>
-            </div>
-        }
-        @if (snapshot()?.state === 'UNMATCHED') {
-            <div class="card">
-                <h2>No matches found</h2>
-                <p>Try changing your tag preferences or wait for the next call.</p>
-            </div>
-        }
     `,
 })
 export class SingleShellComponent implements OnInit, OnDestroy {
@@ -166,24 +179,17 @@ export class SingleShellComponent implements OnInit, OnDestroy {
                 this.ownTags.set(s.ownTagIds);
                 this.mandatory.set(s.mandatoryTagIds);
             } else {
-                // load pools
-                this.api.publicEvent('').subscribe();
-                // We need pools list — fetch via a public event endpoint that returns pools
-                // For simplicity, use the organiser pool list endpoint (which is also accessible to sessions for their event)
                 this.fetchPoolsForEvent(s.eventId);
             }
         });
     }
 
     private fetchPoolsForEvent(eventId: string): void {
-        // Reuse the pools endpoint via direct HTTP through the service
-        // (sessions are allowed to list pools for their own event)
-        fetch(`/api/events/${eventId}/pools`, {
-            headers: { Authorization: `Bearer ${this.auth.sessionBearer() ?? ''}` },
-        })
-            .then((r) => r.json())
-            .then((p: { id: string; defaultTitle: string }[]) => this.pools.set(p))
-            .catch(() => this.pools.set([]));
+        // Sessions are allowed to list pools for their own event.
+        this.api.listEventPools(eventId).subscribe({
+            next: (p) => this.pools.set(p),
+            error: () => this.pools.set([]),
+        });
     }
 
     join(poolId: string): void {

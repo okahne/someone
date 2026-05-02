@@ -5,7 +5,7 @@
     "scripts": {
         "build": "ng build",
         "start": "ng serve",
-        "start:dev": "ng serve --proxy-config proxy.conf.json",
+        "start:dev": "ng serve --host 0.0.0.0 --port 4200 --proxy-config proxy.conf.js",
         "lint": "ng lint",
         "typecheck": "tsc --noEmit",
         "test": "ng test --watch=false --browsers=ChromeHeadless",
@@ -42,6 +42,6 @@
         "karma-coverage": "~2.2.1",
         "karma-jasmine": "~5.1.0",
         "karma-jasmine-html-reporter": "~2.1.0",
-        "typescript": "^5.4.5"
+        "typescript": "~5.5.4"
     }
 }

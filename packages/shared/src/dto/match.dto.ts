@@ -82,6 +82,8 @@ export class PoolCountsDto {
     @IsUUID()
     poolId!: string;
 
+    poolName?: string;
+
     @IsInt()
     available!: number;
 

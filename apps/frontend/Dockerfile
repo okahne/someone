@@ -5,7 +5,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /workspace
 
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/frontend/package.json ./apps/frontend/
 
@@ -25,7 +25,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /workspace
 
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/frontend/package.json ./apps/frontend/
 

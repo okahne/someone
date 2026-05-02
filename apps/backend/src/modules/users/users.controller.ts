@@ -6,9 +6,11 @@ import {
     HttpCode,
     HttpStatus,
     Patch,
+    Query,
     UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedPrincipal } from '../auth/jwt.strategy';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +20,27 @@ import { UpdateUserProfileDto, UserProfileDto } from '@someone/shared';
 @UseGuards(JwtAuthGuard)
 export class UsersController {
     constructor(private readonly prisma: PrismaService) { }
+
+    @Get()
+    @UseGuards(RolesGuard)
+    @Roles('SYSTEM_ADMIN', 'ORGANISER')
+    async search(
+        @Query('q') q?: string,
+        @Query('limit') limit?: string,
+    ): Promise<Array<{ id: string; displayName: string }>> {
+        const take = Math.min(Number(limit) || 20, 50);
+        const term = (q ?? '').trim();
+        const users = await this.prisma.user.findMany({
+            where: {
+                deletedAt: null,
+                ...(term ? { displayName: { contains: term, mode: 'insensitive' as const } } : {}),
+            },
+            orderBy: { displayName: 'asc' },
+            take,
+            select: { id: true, displayName: true },
+        });
+        return users;
+    }
 
     @Get('me')
     async me(@CurrentUser() principal: AuthenticatedPrincipal): Promise<UserProfileDto> {

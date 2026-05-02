@@ -10,10 +10,10 @@ export class DashboardService {
     async forEvent(eventId: string): Promise<OrganiserDashboardDto> {
         const pools = await this.prisma.pool.findMany({
             where: { eventId, archivedAt: null },
-            select: { id: true },
+            select: { id: true, defaultTitle: true },
         });
         const poolCounts: PoolCountsDto[] = await Promise.all(
-            pools.map((p) => this.poolCounts(p.id)),
+            pools.map(async (p) => ({ ...(await this.poolCounts(p.id)), poolName: p.defaultTitle })),
         );
         const activeMatches = await this.prisma.match.findMany({
             where: { releasedAt: null, matchRun: { poolId: { in: pools.map((p) => p.id) } } },

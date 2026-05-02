@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { SingleState } from '@prisma/client';
 import { ServerMessageType } from '@someone/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,7 @@ export class MeetingsService {
         private readonly prisma: PrismaService,
         private readonly state: SingleStateService,
         private readonly broker: GatewayBroker,
+        @Inject(forwardRef(() => TimersService))
         private readonly timers: TimersService,
     ) { }
 

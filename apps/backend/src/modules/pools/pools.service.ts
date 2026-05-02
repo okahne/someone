@@ -167,14 +167,14 @@ export class PoolsService {
         archivedAt: Date | null;
         translations: { locale: string; title: string }[];
     }): PoolDto {
-        const schedule = p.callSchedule as { cron?: string; timezone?: string } | null;
+        const schedule = p.callSchedule as { cron?: string } | null;
         return {
             id: p.id,
             eventId: p.eventId,
             defaultTitle: p.defaultTitle,
             translations: p.translations.map((t) => ({ locale: t.locale, title: t.title })),
             allowRematch: p.allowRematch,
-            callSchedule: { cron: schedule?.cron ?? '', timezone: schedule?.timezone ?? 'UTC' },
+            callSchedule: { cron: schedule?.cron ?? '' },
             meetingTimeLimitMinutes: p.meetingTimeLimitMinutes,
             archivedAt: p.archivedAt?.toISOString() ?? null,
         };

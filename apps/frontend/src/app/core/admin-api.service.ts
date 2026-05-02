@@ -9,6 +9,7 @@ export interface EventDto {
     title: string;
     description?: string | null;
     status: 'DRAFT' | 'PUBLISHED' | 'LIVE' | 'CLOSED' | 'ARCHIVED';
+    timezone: string;
     createdBy: string;
     createdAt: string;
     updatedAt: string;
@@ -46,6 +47,14 @@ export class AdminApiService {
         return this.http.patch<EventDto>(`${API_BASE}/events/${id}/status`, { status });
     }
 
+    updateEvent(id: string, body: Partial<Pick<EventDto, 'title' | 'description' | 'timezone'>>): Observable<EventDto> {
+        return this.http.patch<EventDto>(`${API_BASE}/events/${id}`, body);
+    }
+
+    getEvent(id: string): Observable<EventDto> {
+        return this.http.get<EventDto>(`${API_BASE}/events/${id}`);
+    }
+
     listOrganisers(eventId: string): Observable<OrganiserAssignment[]> {
         return this.http.get<OrganiserAssignment[]>(`${API_BASE}/events/${eventId}/organisers`);
     }
@@ -59,6 +68,13 @@ export class AdminApiService {
 
     removeOrganiser(eventId: string, userId: string): Observable<void> {
         return this.http.delete<void>(`${API_BASE}/events/${eventId}/organisers/${userId}`);
+    }
+
+    searchUsers(q: string): Observable<Array<{ id: string; displayName: string }>> {
+        return this.http.get<Array<{ id: string; displayName: string }>>(
+            `${API_BASE}/users`,
+            { params: { q } },
+        );
     }
 
     audit(opts: { entityType?: string; from?: string; limit?: number } = {}): Observable<AuditEntry[]> {

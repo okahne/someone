@@ -9,7 +9,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
     template: `
         <div class="layout">
             <nav class="sidebar">
-                <h3>Admin</h3>
+                <h3>Blind Date</h3>
                 <a routerLink="/admin/events" routerLinkActive="active">Events</a>
                 <a routerLink="/admin/audit" routerLinkActive="active">Audit log</a>
             </nav>

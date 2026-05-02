@@ -29,13 +29,20 @@ import { AdminApiService, EventDto } from '../core/admin-api.service';
         <div class="card">
             <h2>All events</h2>
             <table>
-                <thead><tr><th>Title</th><th>Status</th><th>Slug</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Title</th><th>Status</th><th>Slug</th><th>Links</th><th>Actions</th></tr></thead>
                 <tbody>
                     @for (e of events(); track e.id) {
                         <tr>
                             <td><a [routerLink]="['/admin/events', e.id]">{{ e.title }}</a></td>
                             <td><span class="badge {{ e.status.toLowerCase() }}">{{ e.status }}</span></td>
                             <td class="muted">{{ e.slug }}</td>
+                            <td>
+                                <div class="cluster">
+                                    <a [routerLink]="['/admin/events', e.id]">Organisers</a>
+                                    <a [routerLink]="['/admin/events', e.id, 'configure']">Configure</a>
+                                    <a [href]="publicUrl(e)" target="_blank" rel="noopener">Public page ↗</a>
+                                </div>
+                            </td>
                             <td>
                                 @if (e.status === 'DRAFT') {
                                     <button (click)="setStatus(e, 'PUBLISHED')">Publish</button>
@@ -77,5 +84,9 @@ export class AdminEventsComponent implements OnInit {
 
     setStatus(e: EventDto, status: EventDto['status']): void {
         this.api.setStatus(e.id, status).subscribe(() => this.refresh());
+    }
+
+    publicUrl(e: EventDto): string {
+        return `/event/${e.slug}`;
     }
 }
