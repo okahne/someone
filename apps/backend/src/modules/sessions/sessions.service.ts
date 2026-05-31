@@ -1,5 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SingleState } from '@prisma/client';
+import * as cronParser from 'cron-parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { SingleStateService } from './single-state.service';
@@ -8,6 +9,8 @@ interface ProfileImageInput { buffer: Buffer; mimetype: string; size: number }
 
 @Injectable()
 export class SessionsService {
+    private readonly logger = new Logger(SessionsService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly state: SingleStateService,
@@ -39,11 +42,18 @@ export class SessionsService {
         ownTagIds: string[];
         mandatoryTagIds: string[];
         activeMatchId: string | null;
+        nextCallAt: string | null;
     }> {
         const session = await this.prisma.singleSession.findUnique({
             where: { id: sessionId },
             include: {
-                poolMemberships: { where: { leftAt: null }, include: { preferences: { orderBy: { createdAt: 'desc' }, take: 1 } } },
+                poolMemberships: {
+                    where: { leftAt: null },
+                    include: {
+                        preferences: { orderBy: { createdAt: 'desc' }, take: 1 },
+                        pool: { select: { callSchedule: true } },
+                    },
+                },
                 matchesAsA: { where: { releasedAt: null }, take: 1 },
                 matchesAsB: { where: { releasedAt: null }, take: 1 },
             },
@@ -52,6 +62,7 @@ export class SessionsService {
         const membership = session.poolMemberships[0];
         const pref = membership?.preferences[0];
         const activeMatch = session.matchesAsA[0] ?? session.matchesAsB[0] ?? null;
+        const cron = (membership?.pool?.callSchedule as { cron?: string } | null)?.cron;
         return {
             sessionId: session.id,
             state: session.state,
@@ -60,7 +71,19 @@ export class SessionsService {
             ownTagIds: membership?.ownTagIds ?? [],
             mandatoryTagIds: pref?.mandatoryTagIds ?? [],
             activeMatchId: activeMatch?.id ?? null,
+            nextCallAt: this.computeNextCallAt(cron),
         };
+    }
+
+    private computeNextCallAt(cron: string | undefined | null): string | null {
+        if (!cron || cron.trim() === '') return null;
+        try {
+            const it = cronParser.parseExpression(cron, { currentDate: new Date() });
+            return it.next().toDate().toISOString();
+        } catch (err) {
+            this.logger.warn(`Invalid cron expression "${cron}": ${(err as Error).message}`);
+            return null;
+        }
     }
 
     async uploadProfileImage(sessionId: string, file: ProfileImageInput, consent: boolean): Promise<void> {
@@ -109,6 +132,34 @@ export class SessionsService {
         await this.prisma.singlePoolMembership.update({
             where: { id: membership.id },
             data: { ownTagIds: tagIds },
+        });
+    }
+
+    /**
+     * Persist mandatory ("looking for") tags without changing the single's
+     * mode. The participant UI calls this on every toggle so preferences are
+     * always up to date — when they later flip to SEARCHING/BOOKED the
+     * matching engine sees the latest selection. Empty arrays are allowed
+     * and clear the preferences row.
+     */
+    async setMandatoryTags(sessionId: string, tagIds: string[]): Promise<void> {
+        const membership = await this.prisma.singlePoolMembership.findFirst({
+            where: { sessionId, leftAt: null },
+        });
+        if (!membership) throw new BadRequestException('No active pool');
+        if (tagIds.length > 0) {
+            const validTags = await this.prisma.tag.count({
+                where: { id: { in: tagIds }, poolId: membership.poolId, archivedAt: null },
+            });
+            if (validTags !== tagIds.length) throw new BadRequestException('Invalid tag set');
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.singlePreference.deleteMany({ where: { sessionId } });
+            if (tagIds.length > 0) {
+                await tx.singlePreference.create({
+                    data: { sessionId, poolMembershipId: membership.id, mandatoryTagIds: tagIds },
+                });
+            }
         });
     }
 

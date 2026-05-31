@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -20,6 +20,17 @@ import { PublicEvent, SingleApiService } from '../core/single-api.service';
 
                     @if (e.status === 'CLOSED' || e.status === 'ARCHIVED') {
                         <p class="error">This event is no longer accepting participants.</p>
+                    } @else if (isLoggedIn()) {
+                        @if (autoJoining()) {
+                            <p class="muted">Joining as your account…</p>
+                        } @else {
+                            <h2>Join</h2>
+                            <p>You're signed in. Continue straight to the event.</p>
+                            <div class="row">
+                                <input [(ngModel)]="displayName" placeholder="Display name (optional)" style="flex:1" />
+                                <button (click)="joinAsUser()">Continue</button>
+                            </div>
+                        }
                     } @else {
                         <h2>Join as guest</h2>
                         <div class="row">
@@ -39,6 +50,8 @@ export class EventEntryComponent implements OnInit {
     displayName = '';
     error = signal<string | null>(null);
     slug = '';
+    autoJoining = signal(false);
+    isLoggedIn = computed(() => this.auth.bearer() !== null);
 
     constructor(
         private readonly api: SingleApiService,
@@ -50,7 +63,20 @@ export class EventEntryComponent implements OnInit {
     ngOnInit(): void {
         this.slug = this.route.snapshot.paramMap.get('slug') ?? '';
         this.api.publicEvent(this.slug).subscribe({
-            next: (e) => this.event.set(e),
+            next: (e) => {
+                this.event.set(e);
+                // Logged-in users (admins, organisers, returning OAuth users)
+                // skip the "Join as guest" form entirely — we get-or-create a
+                // session bound to their user account and route straight to
+                // the participant shell.
+                if (
+                    this.isLoggedIn()
+                    && e.status !== 'CLOSED'
+                    && e.status !== 'ARCHIVED'
+                ) {
+                    this.joinAsUser();
+                }
+            },
             error: (e: { error?: { message?: string } }) => this.error.set(e.error?.message ?? 'Event unavailable'),
         });
     }
@@ -61,6 +87,22 @@ export class EventEntryComponent implements OnInit {
         this.auth.anonymous(e.id, this.displayName).subscribe({
             next: (s) => this.router.navigate(['/play', s.sessionId]),
             error: (err: { error?: { message?: string } }) => this.error.set(err.error?.message ?? 'Could not join'),
+        });
+    }
+
+    joinAsUser(): void {
+        const e = this.event();
+        if (!e) return;
+        this.autoJoining.set(true);
+        this.api.sessionForUser(e.id, this.displayName || undefined).subscribe({
+            next: (s) => {
+                this.auth.setSessionToken(s.accessToken);
+                this.router.navigate(['/play', s.sessionId]);
+            },
+            error: (err: { error?: { message?: string } }) => {
+                this.autoJoining.set(false);
+                this.error.set(err.error?.message ?? 'Could not join');
+            },
         });
     }
 

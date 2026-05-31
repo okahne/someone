@@ -27,6 +27,7 @@ export interface SessionSnapshot {
     ownTagIds: string[];
     mandatoryTagIds: string[];
     activeMatchId: string | null;
+    nextCallAt: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -55,6 +56,10 @@ export class SingleApiService {
 
     setOwnTags(sessionId: string, ownTagIds: string[]): Observable<unknown> {
         return this.http.put(`${API_BASE}/sessions/${sessionId}/pool-tags`, { ownTagIds });
+    }
+
+    setPreferences(sessionId: string, mandatoryTagIds: string[]): Observable<unknown> {
+        return this.http.put(`${API_BASE}/sessions/${sessionId}/preferences`, { mandatoryTagIds });
     }
 
     setMode(sessionId: string, mode: 'AVAILABLE' | 'SEARCHING' | 'BOOKED', mandatoryTagIds: string[] = []):

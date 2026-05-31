@@ -29,6 +29,38 @@ import { RetentionModule } from './modules/retention/retention.module';
                         : undefined,
                 redact: ['req.headers.authorization', 'req.headers.cookie'],
                 customProps: () => ({ module: 'app' }),
+                // Suppress per-request logs for routine traffic. We still log
+                // 4xx as `warn`, 5xx and request errors as `error`, so anything
+                // worth attention surfaces — and the per-request error log is
+                // accompanied by the original exception (logged with its full
+                // stack by HttpExceptionFilter).
+                autoLogging: {
+                    ignore: (req) => {
+                        const url = (req.url ?? '').split('?')[0];
+                        return url === '/health' || url === '/healthz' || url === '/favicon.ico';
+                    },
+                },
+                customLogLevel: (_req, res, err) => {
+                    if (err || res.statusCode >= 500) return 'error';
+                    if (res.statusCode >= 400) return 'warn';
+                    // Routine 2xx/3xx traffic: only log at debug level so it
+                    // disappears in production but is still available locally.
+                    return 'debug';
+                },
+                customSuccessMessage: (req, res) =>
+                    `${req.method} ${req.url} → ${res.statusCode}`,
+                customErrorMessage: (req, res) =>
+                    `${req.method} ${req.url} → ${res.statusCode}`,
+                // Strip the noisy header dump from the per-request log; the
+                // exception filter logs everything that matters about errors.
+                serializers: {
+                    req: (req: { id?: unknown; method?: string; url?: string }) => ({
+                        id: req.id,
+                        method: req.method,
+                        url: req.url,
+                    }),
+                    res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
+                },
             },
         }),
         PrismaModule,

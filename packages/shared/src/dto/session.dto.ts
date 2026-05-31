@@ -62,6 +62,13 @@ export class SetOwnTagsDto {
     ownTagIds!: string[];
 }
 
+/** `PUT /sessions/:id/preferences` request body. */
+export class SetPreferencesDto {
+    @IsArray()
+    @IsUUID('all', { each: true })
+    mandatoryTagIds!: string[];
+}
+
 /** `PUT /sessions/:id/mode` request body. */
 export class SetModeDto {
     @IsEnum(SingleMode)

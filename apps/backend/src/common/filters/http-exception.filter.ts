@@ -4,6 +4,7 @@ import {
     ArgumentsHost,
     HttpException,
     HttpStatus,
+    Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -16,6 +17,8 @@ interface ErrorResponseBody {
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+    private readonly logger = new Logger(HttpExceptionFilter.name);
+
     catch(exception: unknown, host: ArgumentsHost): void {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse<Response>();
@@ -50,6 +53,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
             if (code === 'INTERNAL_SERVER_ERROR') {
                 code = HttpStatus[status] ?? 'UNKNOWN';
             }
+        } else if (exception instanceof Error) {
+            // Non-HttpException — preserve the original message for the log
+            // (the response body still says "Internal server error").
+            message = exception.message || message;
         }
 
         const body: ErrorResponseBody = {
@@ -58,6 +65,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
             message,
             code,
         };
+
+        // Log the *original* exception with its full stack. Without this,
+        // pino-http only prints its own "failed with status code 500" wrapper
+        // and the actual root cause is invisible in container logs.
+        const logCtx = `${request.method} ${request.originalUrl ?? request.url}`;
+        if (status >= 500) {
+            const stack = exception instanceof Error ? exception.stack : undefined;
+            this.logger.error(
+                `${logCtx} → ${status} ${code}: ${message}`,
+                stack,
+            );
+        } else if (status >= 400) {
+            this.logger.warn(`${logCtx} → ${status} ${code}: ${message}`);
+        }
 
         response
             .status(status)

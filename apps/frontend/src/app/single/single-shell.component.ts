@@ -14,13 +14,10 @@ interface Tag { id: string; defaultLabel: string }
     imports: [CommonModule, FormsModule],
     template: `
         <div class="single-shell">
-            <div class="brand-header">Blind Date</div>
-
-            <div class="card">
-                <div class="row">
-                    <strong>State:</strong> {{ snapshot()?.state ?? '—' }}
-                    <span class="muted" style="margin-left:auto">{{ wsConnected() ? '● online' : '○ offline' }}</span>
-                </div>
+            <div class="brand-header">
+                Blind Date
+                <span class="ws-dot" [class.ws-dot--on]="wsConnected()"
+                      [title]="wsConnected() ? 'online' : 'offline'"></span>
             </div>
 
             <!-- Pool selection -->
@@ -38,28 +35,29 @@ interface Tag { id: string; defaultLabel: string }
             <!-- Tag + mode -->
             @if (snapshot()?.poolId && !activeMatch() && snapshot()!.state !== 'MOVING' && snapshot()!.state !== 'MEETING') {
                 <div class="card">
+                    @if (countdown(); as c) {
+                        <p class="countdown">Next call in <strong>{{ c }}</strong></p>
+                    }
+
                     <h2>Your tags</h2>
                     <div class="cluster">
                         @for (t of tags(); track t.id) {
-                            <label>
-                                <input type="checkbox"
-                                       [checked]="ownTags().includes(t.id)"
-                                       (change)="toggleOwn(t.id)" />
+                            <button type="button"
+                                    [class.secondary]="!ownTags().includes(t.id)"
+                                    (click)="toggleOwn(t.id)">
                                 {{ t.defaultLabel }}
-                            </label>
+                            </button>
                         }
                     </div>
-                    <p><button class="secondary" (click)="saveOwn()">Save tags</button></p>
 
                     <h2>Looking for</h2>
                     <div class="cluster">
                         @for (t of tags(); track t.id) {
-                            <label>
-                                <input type="checkbox"
-                                       [checked]="mandatory().includes(t.id)"
-                                       (change)="toggleMandatory(t.id)" />
+                            <button type="button"
+                                    [class.secondary]="!mandatory().includes(t.id)"
+                                    (click)="toggleMandatory(t.id)">
                                 {{ t.defaultLabel }}
-                            </label>
+                            </button>
                         }
                     </div>
 
@@ -70,6 +68,7 @@ interface Tag { id: string; defaultLabel: string }
                         <button class="secondary" (click)="mode('BOOKED')">Book next call</button>
                     </div>
                     @if (modeError()) { <p class="error">{{ modeError() }}</p> }
+                    @if (saveError()) { <p class="error">{{ saveError() }}</p> }
                 </div>
             }
 
@@ -104,6 +103,25 @@ interface Tag { id: string; defaultLabel: string }
             }
         </div>
     `,
+    styles: [`
+        .ws-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: var(--space-2);
+            background: var(--text-secondary);
+            opacity: 0.5;
+            vertical-align: middle;
+        }
+        .ws-dot--on { background: #4ade80; opacity: 1; box-shadow: 0 0 6px #4ade80; }
+        .countdown {
+            margin: 0 0 var(--space-3);
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+        .countdown strong { color: var(--text-primary); }
+    `],
 })
 export class SingleShellComponent implements OnInit, OnDestroy {
     sessionId = '';
@@ -114,9 +132,26 @@ export class SingleShellComponent implements OnInit, OnDestroy {
     ownTags = signal<string[]>([]);
     mandatory = signal<string[]>([]);
     modeError = signal<string | null>(null);
+    saveError = signal<string | null>(null);
     activeMatch = signal<{ matchId: string; partner: { displayName: string }; meetingSpot: { title: string; description?: string } } | null>(null);
     warning = signal(false);
     wsConnected = computed(() => this.ws.connected());
+    /** ms-since-epoch tick used by the countdown computed. */
+    private now = signal(Date.now());
+    countdown = computed(() => {
+        const at = this.snapshot()?.nextCallAt;
+        if (!at) return null;
+        const diff = new Date(at).getTime() - this.now();
+        if (diff <= 0) return '00:00';
+        const totalSec = Math.floor(diff / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    });
+    private tickHandle: ReturnType<typeof setInterval> | null = null;
+    private msgPollHandle: ReturnType<typeof setInterval> | null = null;
 
     constructor(
         private readonly api: SingleApiService,
@@ -132,17 +167,20 @@ export class SingleShellComponent implements OnInit, OnDestroy {
             await this.ws.connect(token);
             this.bindMessages();
         }
+        this.tickHandle = setInterval(() => this.now.set(Date.now()), 1000);
         this.refresh();
     }
 
     ngOnDestroy(): void {
         this.ws.disconnect();
+        if (this.tickHandle) clearInterval(this.tickHandle);
+        if (this.msgPollHandle) clearInterval(this.msgPollHandle);
     }
 
     private bindMessages(): void {
         // Poll for messages via signal effect
         const seen = new Set<string>();
-        setInterval(() => {
+        this.msgPollHandle = setInterval(() => {
             const m = this.ws.lastMessage();
             if (!m) return;
             const key = JSON.stringify(m);
@@ -199,22 +237,32 @@ export class SingleShellComponent implements OnInit, OnDestroy {
     toggleOwn(id: string): void {
         const set = new Set(this.ownTags());
         set.has(id) ? set.delete(id) : set.add(id);
-        this.ownTags.set([...set]);
+        const next = [...set];
+        this.ownTags.set(next);
+        this.saveError.set(null);
+        // Push immediately — the user no longer has an explicit "Save" button.
+        this.api.setOwnTags(this.sessionId, next).subscribe({
+            error: (e: { error?: { message?: string } }) =>
+                this.saveError.set(e.error?.message ?? 'Failed to save tags'),
+        });
     }
 
     toggleMandatory(id: string): void {
         const set = new Set(this.mandatory());
         set.has(id) ? set.delete(id) : set.add(id);
-        this.mandatory.set([...set]);
-    }
-
-    saveOwn(): void {
-        this.api.setOwnTags(this.sessionId, this.ownTags()).subscribe();
+        const next = [...set];
+        this.mandatory.set(next);
+        this.saveError.set(null);
+        // Push immediately so the matching engine always sees the latest
+        // selection — even when the single isn't currently in SEARCHING/BOOKED.
+        this.api.setPreferences(this.sessionId, next).subscribe({
+            error: (e: { error?: { message?: string } }) =>
+                this.saveError.set(e.error?.message ?? 'Failed to save preferences'),
+        });
     }
 
     mode(m: 'AVAILABLE' | 'SEARCHING' | 'BOOKED'): void {
         this.modeError.set(null);
-        this.saveOwn();
         this.api.setMode(this.sessionId, m, m === 'AVAILABLE' ? [] : this.mandatory()).subscribe({
             next: () => this.refresh(),
             error: (e: { error?: { message?: string } }) => this.modeError.set(e.error?.message ?? 'Failed'),

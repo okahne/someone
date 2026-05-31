@@ -5,6 +5,7 @@ import {
     Param,
     Post,
     Put,
+    UnauthorizedException,
     UploadedFile,
     UseGuards,
     UseInterceptors,
@@ -19,6 +20,7 @@ import {
     JoinPoolDto,
     SetModeDto,
     SetOwnTagsDto,
+    SetPreferencesDto,
     UploadProfilePictureDto,
 } from '@someone/shared';
 import { MatchingService } from '../matching/matching.service';
@@ -47,7 +49,7 @@ export class SessionsController {
         @Body() body: { displayName?: string },
     ): Promise<{ accessToken: string; sessionId: string; expiresAt: string }> {
         if (!principal.userId) {
-            throw new Error('User token required');
+            throw new UnauthorizedException('User token required');
         }
         const sessionId = await this.sessions.getOrCreateUserSession(
             principal.userId,
@@ -99,6 +101,17 @@ export class SessionsController {
     ): Promise<{ ok: true }> {
         await this.sessions.assertOwn(id, principal.sessionId);
         await this.sessions.setOwnTags(id, body.ownTagIds);
+        return { ok: true };
+    }
+
+    @Put(':id/preferences')
+    async setPreferences(
+        @CurrentUser() principal: AuthenticatedPrincipal,
+        @Param('id') id: string,
+        @Body() body: SetPreferencesDto,
+    ): Promise<{ ok: true }> {
+        await this.sessions.assertOwn(id, principal.sessionId);
+        await this.sessions.setMandatoryTags(id, body.mandatoryTagIds);
         return { ok: true };
     }
 
