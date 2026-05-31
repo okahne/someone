@@ -13,6 +13,8 @@ import {
     CreateTagDto,
     EventLanguageDto,
     MeetingSpotDto,
+    parseQuestionScript,
+    ParsedQuestionScript,
     PoolDto,
     QuestionScriptDto,
     SetEventLanguagesDto,
@@ -22,6 +24,7 @@ import {
     UpdateMeetingSpotDto,
     UpdatePoolDto,
     UpdateTagDto,
+    UploadQuestionScriptDto,
 } from '@someone/shared';
 import { StorageService } from '../storage/storage.service';
 
@@ -383,10 +386,39 @@ export class PoolsService {
     async setScript(actorId: string, poolId: string, dto: SetQuestionScriptDto): Promise<QuestionScriptDto> {
         const script = await this.prisma.questionScript.upsert({
             where: { poolId },
-            create: { poolId, questions: dto.questions as unknown as object },
-            update: { questions: dto.questions as unknown as object },
+            create: { poolId, questions: dto.questions as unknown as object, source: null },
+            update: { questions: dto.questions as unknown as object, source: null },
         });
         await this.audit.record({ actorId, action: 'script.set', entityType: 'Pool', entityId: poolId });
+        return this.toScriptDto(script);
+    }
+
+    /**
+     * Parse and persist an organiser-uploaded DSL text script. The raw
+     * source is kept verbatim; the parsed structure is also stored under
+     * `questions` (as `{ parsed: ParsedQuestionScript }`) so reads don't
+     * need to re-parse.
+     *
+     * The script's own duration hints never override the singles-pool's
+     * `meetingTimeLimitMinutes`; that cap is enforced at meeting runtime
+     * by the selector, not here.
+     */
+    async uploadScript(actorId: string, poolId: string, dto: UploadQuestionScriptDto): Promise<QuestionScriptDto> {
+        const { script: parsed, errors } = parseQuestionScript(dto.source);
+        if (errors.length > 0) {
+            throw new BadRequestException({
+                message: 'Question script has parse errors',
+                code: 'QUESTION_SCRIPT_INVALID',
+                errors,
+            });
+        }
+        const payload = this.parsedToPersistedJson(parsed);
+        const script = await this.prisma.questionScript.upsert({
+            where: { poolId },
+            create: { poolId, questions: payload as unknown as object, source: dto.source },
+            update: { questions: payload as unknown as object, source: dto.source },
+        });
+        await this.audit.record({ actorId, action: 'script.upload', entityType: 'Pool', entityId: poolId });
         return this.toScriptDto(script);
     }
 
@@ -400,12 +432,44 @@ export class PoolsService {
         await this.audit.record({ actorId, action: 'script.delete', entityType: 'Pool', entityId: poolId });
     }
 
-    private toScriptDto(s: { id: string; poolId: string; questions: unknown }): QuestionScriptDto {
-        const questions = s.questions as Array<{ translations: TranslationDto[] }>;
+    private parsedToPersistedJson(parsed: ParsedQuestionScript): {
+        parsed: ParsedQuestionScript;
+        questions: { translations: TranslationDto[] }[];
+    } {
+        // Flatten every pool's questions into the legacy `questions` shape
+        // for any callers still reading that field.
+        const questions: { translations: TranslationDto[] }[] = [];
+        for (const pool of parsed.pools) {
+            for (const q of pool.questions) {
+                questions.push({
+                    translations: [
+                        { locale: '_default', title: q.defaultText },
+                        ...q.translations.map((t) => ({ locale: t.locale, title: t.title })),
+                    ],
+                });
+            }
+        }
+        return { parsed, questions };
+    }
+
+    private toScriptDto(s: { id: string; poolId: string; questions: unknown; source?: string | null }): QuestionScriptDto {
+        const raw = s.questions as
+            | Array<{ translations: TranslationDto[] }>
+            | { parsed?: ParsedQuestionScript; questions?: Array<{ translations: TranslationDto[] }> };
+        let questions: Array<{ translations: TranslationDto[] }> = [];
+        let parsed: ParsedQuestionScript | undefined;
+        if (Array.isArray(raw)) {
+            questions = raw;
+        } else if (raw && typeof raw === 'object') {
+            questions = Array.isArray(raw.questions) ? raw.questions : [];
+            parsed = raw.parsed;
+        }
         return {
             id: s.id,
             poolId: s.poolId,
-            questions: Array.isArray(questions) ? questions : [],
+            questions,
+            source: s.source ?? null,
+            parsed,
         };
     }
 

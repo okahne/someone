@@ -171,11 +171,12 @@ All persistent-user endpoints require a valid JWT. Anonymous session endpoints a
 
 ### Question Scripts
 
-| Method   | Path                    | Auth   | Role      | Description                     |
-|----------|-------------------------|--------|-----------|---------------------------------|
-| `PUT`    | `/pools/:id/script`     | Bearer | Organiser | Create or replace question script |
-| `GET`    | `/pools/:id/script`     | Bearer | Organiser, Single | Get script for a pool |
-| `DELETE` | `/pools/:id/script`     | Bearer | Organiser | Remove question script          |
+| Method   | Path                          | Auth   | Role      | Description                     |
+|----------|-------------------------------|--------|-----------|---------------------------------|
+| `PUT`    | `/pools/:id/script`           | Bearer | Organiser | Create or replace question script (structured form). |
+| `PUT`    | `/pools/:id/script/source`    | Bearer | Organiser | Upload a question script as DSL text. See [docs/question-script-format.md](question-script-format.md). Returns 400 with `{ code: 'QUESTION_SCRIPT_INVALID', errors: [{line,message}] }` on parse failure. |
+| `GET`    | `/pools/:id/script`           | Bearer | Organiser, Single | Get script for a pool (includes `source` + `parsed` when uploaded as DSL). |
+| `DELETE` | `/pools/:id/script`           | Bearer | Organiser | Remove question script.         |
 
 ---
 

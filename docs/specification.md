@@ -518,7 +518,7 @@ The implementation must document the data model and relationships. At minimum, d
 - `TagTranslation`: translated tag labels
 - `MeetingSpot`: physical meetup location descriptor
 - `MeetingSpotImage`: associated spot media metadata
-- `QuestionScript`: optional ordered prompt list
+- `QuestionScript`: optional ordered prompt list, optionally authored as a DSL text upload (see [docs/question-script-format.md](question-script-format.md))
 - `SingleSession`: event-scoped participation record for anonymous or persistent single
 - `SinglePoolMembership`: current pool and own selected tags
 - `SinglePreference`: currently required partner tags for search or booking

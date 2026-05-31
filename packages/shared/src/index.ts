@@ -6,3 +6,4 @@ export * from './dto';
 export * from './ws';
 export * from './jobs';
 export * from './util';
+export * from './script';

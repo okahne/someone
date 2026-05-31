@@ -32,6 +32,7 @@ import {
     UpdateMeetingSpotDto,
     UpdatePoolDto,
     UpdateTagDto,
+    UploadQuestionScriptDto,
 } from '@someone/shared';
 
 interface UploadedImageFile {
@@ -223,6 +224,16 @@ export class PoolsController {
     ): Promise<QuestionScriptDto> {
         await this.pools.assertEventAuthorityForPool(poolId, user);
         return this.pools.setScript(user.userId!, poolId, dto);
+    }
+
+    @Put('pools/:id/script/source')
+    async uploadScript(
+        @CurrentUser() user: AuthenticatedPrincipal,
+        @Param('id') poolId: string,
+        @Body() dto: UploadQuestionScriptDto,
+    ): Promise<QuestionScriptDto> {
+        await this.pools.assertEventAuthorityForPool(poolId, user);
+        return this.pools.uploadScript(user.userId!, poolId, dto);
     }
 
     @Get('pools/:id/script')

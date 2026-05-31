@@ -9,6 +9,8 @@ import {
     MeetingSpotDto,
     OrganiserDashboard,
     EventLanguage,
+    ParsedQuestionScriptView,
+    ScriptUploadError,
 } from '../core/organiser-api.service';
 import { AdminApiService } from '../core/admin-api.service';
 
@@ -244,6 +246,55 @@ interface SpotEditModel {
 
             <div class="card">
                 <h2>Question script</h2>
+                <p class="muted">
+                    Upload a question script as a plain text file (DSL). The script
+                    defines *question pools* (random or sequential), tag-based
+                    inclusion rules, and acts with end conditions. The script never
+                    overrides the singles-pool meeting time limit.
+                </p>
+                <div class="stack">
+                    <input type="file" accept=".txt,.script,text/plain" (change)="onScriptFile($event)" />
+                    <textarea
+                        rows="14"
+                        [(ngModel)]="scriptSource"
+                        placeholder="pool greetings random&#10;  - How are you?&#10;act warmup&#10;  end = 3m&#10;  use greetings"
+                        style="width:100%; font-family: monospace; font-size: 0.9em"></textarea>
+                    <div class="cluster">
+                        <button (click)="uploadScript()" [disabled]="!scriptSource">Upload script</button>
+                    </div>
+                    @if (scriptUploadMessage()) {
+                        <p class="muted">{{ scriptUploadMessage() }}</p>
+                    }
+                    @if (scriptErrors().length > 0) {
+                        <ul class="error">
+                            @for (err of scriptErrors(); track $index) {
+                                <li>line {{ err.line || '?' }}: {{ err.message }}</li>
+                            }
+                        </ul>
+                    }
+                    @if (scriptParsed(); as p) {
+                        <h3 style="margin-top: var(--space-4)">Parsed preview</h3>
+                        <p class="muted">{{ p.pools.length }} question pool(s), {{ p.acts.length }} act(s).</p>
+                        <ul>
+                            @for (qp of p.pools; track qp.name) {
+                                <li><strong>{{ qp.name }}</strong> ({{ qp.mode }}, {{ qp.questions.length }} question(s))</li>
+                            }
+                        </ul>
+                        <ul>
+                            @for (act of p.acts; track act.name) {
+                                <li>
+                                    <strong>act {{ act.name }}</strong> —
+                                    @if (act.end.durationSeconds) { ends after {{ act.end.durationSeconds }}s }
+                                    @if (act.end.questionCount) { ends after {{ act.end.questionCount }} question(s) }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Question script (manual)</h2>
                 @for (q of script(); track $index) {
                     <div class="card" style="margin-bottom: var(--space-3); background: var(--bg-surface-2)">
                         <div class="stack">
@@ -336,6 +387,12 @@ export class OrganiserConfigComponent implements OnInit {
     eventTimezone = 'UTC';
     eventSettingsMessage = signal<string | null>(null);
 
+    /** Raw DSL text for upload (textarea or chosen file contents). */
+    scriptSource = '';
+    scriptUploadMessage = signal<string | null>(null);
+    scriptErrors = signal<ScriptUploadError[]>([]);
+    scriptParsed = signal<ParsedQuestionScriptView | null>(null);
+
     constructor(
         private readonly api: OrganiserApiService,
         private readonly admin: AdminApiService,
@@ -410,6 +467,10 @@ export class OrganiserConfigComponent implements OnInit {
                 translations: Object.fromEntries(q.translations.map((tr) => [tr.locale, tr.title])),
             }));
             this.script.set(questions);
+            this.scriptSource = s?.source ?? '';
+            this.scriptParsed.set(s?.parsed ?? null);
+            this.scriptErrors.set([]);
+            this.scriptUploadMessage.set(null);
         });
     }
 
@@ -652,6 +713,43 @@ export class OrganiserConfigComponent implements OnInit {
         // locale is missing, drop the question to avoid backend rejection.
         const valid = questions.filter((q) => q.translations.some((t) => t.locale === defaultLocale && t.title));
         this.api.setScript(id, valid).subscribe();
+    }
+
+    // -- DSL upload ---------------------------------------------------------
+
+    onScriptFile(ev: Event): void {
+        const input = ev.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            this.scriptSource = String(reader.result ?? '');
+            this.scriptUploadMessage.set(null);
+            this.scriptErrors.set([]);
+        };
+        reader.readAsText(file);
+    }
+
+    uploadScript(): void {
+        const id = this.selectedPoolId();
+        if (!id || !this.scriptSource) return;
+        this.scriptUploadMessage.set(null);
+        this.scriptErrors.set([]);
+        this.api.uploadScript(id, this.scriptSource).subscribe({
+            next: (s) => {
+                this.scriptUploadMessage.set('Script uploaded.');
+                this.scriptParsed.set(s.parsed ?? null);
+            },
+            error: (e: { error?: { code?: string; message?: string; errors?: ScriptUploadError[] } }) => {
+                const body = e.error;
+                if (body?.code === 'QUESTION_SCRIPT_INVALID' && body.errors) {
+                    this.scriptErrors.set(body.errors);
+                    this.scriptUploadMessage.set('Script has errors — see below.');
+                } else {
+                    this.scriptUploadMessage.set(body?.message ?? 'Upload failed.');
+                }
+            },
+        });
     }
 
     refreshDashboard(): void {

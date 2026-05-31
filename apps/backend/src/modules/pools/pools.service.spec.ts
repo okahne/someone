@@ -345,4 +345,40 @@ describe('PoolsService translations', () => {
             expect(result.questions).toEqual(dto.questions);
         });
     });
+
+    describe('uploadScript (DSL)', () => {
+        it('parses, persists source verbatim and stores the parsed structure', async () => {
+            prisma.questionScript.upsert.mockImplementation(({ create }: { create: { source: string; questions: unknown } }) => Promise.resolve({
+                id: 'qs1', poolId: 'p1', questions: create.questions, source: create.source,
+            }));
+
+            const dsl = [
+                'pool greetings random',
+                '  - How are you?',
+                '    sv = Hur mår du?',
+                'act warmup',
+                '  end = 2 questions',
+                '  use greetings',
+                '',
+            ].join('\n');
+
+            const result = await service.uploadScript('actor', 'p1', { source: dsl });
+
+            expect(prisma.questionScript.upsert).toHaveBeenCalled();
+            const call = prisma.questionScript.upsert.mock.calls[0][0];
+            expect(call.create.source).toBe(dsl);
+            const stored = call.create.questions as { parsed: { pools: unknown[]; acts: unknown[] } };
+            expect(stored.parsed.pools).toHaveLength(1);
+            expect(stored.parsed.acts).toHaveLength(1);
+            expect(result.source).toBe(dsl);
+            expect(result.parsed).toBeDefined();
+        });
+
+        it('rejects invalid scripts with QUESTION_SCRIPT_INVALID', async () => {
+            await expect(
+                service.uploadScript('actor', 'p1', { source: 'pool x random\n  - q\nact a\n  end = banana\n  use x\n' }),
+            ).rejects.toMatchObject({ response: { code: 'QUESTION_SCRIPT_INVALID' } });
+            expect(prisma.questionScript.upsert).not.toHaveBeenCalled();
+        });
+    });
 });

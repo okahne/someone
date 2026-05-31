@@ -42,7 +42,28 @@ export interface QuestionScriptDto {
     id: string;
     poolId: string;
     questions: { translations: { locale: string; title: string }[] }[];
+    source?: string | null;
+    parsed?: ParsedQuestionScriptView | null;
 }
+
+export interface ParsedQuestionScriptView {
+    pools: {
+        name: string;
+        mode: 'random' | 'sequential';
+        questions: {
+            defaultText: string;
+            translations: { locale: string; title: string }[];
+            requires: { self: string[]; partner: string[] };
+        }[];
+    }[];
+    acts: {
+        name: string;
+        end: { durationSeconds?: number; questionCount?: number };
+        sources: { poolName: string; requires: { self: string[]; partner: string[] } }[];
+    }[];
+}
+
+export interface ScriptUploadError { line: number; message: string; }
 
 export interface EventLanguage {
     locale: string;
@@ -124,6 +145,14 @@ export class OrganiserApiService {
 
     setScript(poolId: string, questions: { translations: { locale: string; title: string }[] }[]): Observable<unknown> {
         return this.http.put(`${API_BASE}/pools/${poolId}/script`, { questions });
+    }
+
+    /**
+     * Upload a raw DSL script (text file). The server parses and validates;
+     * on failure the HTTP error body carries `{ code: 'QUESTION_SCRIPT_INVALID', errors: [...] }`.
+     */
+    uploadScript(poolId: string, source: string): Observable<QuestionScriptDto> {
+        return this.http.put<QuestionScriptDto>(`${API_BASE}/pools/${poolId}/script/source`, { source });
     }
 
     dashboard(eventId: string): Observable<OrganiserDashboard> {

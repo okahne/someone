@@ -270,9 +270,10 @@ model MeetingSpotImage {
 }
 
 model QuestionScript {
-  id        String @id @default(uuid()) @db.Uuid
-  poolId    String @unique @map("pool_id") @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  poolId    String  @unique @map("pool_id") @db.Uuid
   questions Json
+  source    String?
 
   pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
 

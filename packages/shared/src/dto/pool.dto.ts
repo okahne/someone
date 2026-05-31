@@ -284,6 +284,13 @@ export class SetQuestionScriptDto {
     questions!: QuestionScriptEntryDto[];
 }
 
+/** `PUT /pools/:id/script/source` request body — raw DSL text upload. */
+export class UploadQuestionScriptDto {
+    @IsString()
+    @Length(1, 200000)
+    source!: string;
+}
+
 /** Question script response body. */
 export class QuestionScriptDto {
     @IsUUID()
@@ -294,4 +301,17 @@ export class QuestionScriptDto {
 
     @IsArray()
     questions!: QuestionScriptEntryDto[];
+
+    /** Raw DSL text uploaded by the organiser, when available. */
+    @IsOptional()
+    @IsString()
+    source?: string | null;
+
+    /**
+     * Parsed structured form (question pools + acts), populated when the
+     * script was uploaded as DSL text. Stored as `unknown` here to avoid
+     * pulling class-validator decorators into the parsed types.
+     */
+    @IsOptional()
+    parsed?: unknown;
 }

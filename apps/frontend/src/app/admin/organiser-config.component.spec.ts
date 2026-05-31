@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
+import { throwError } from 'rxjs';
 import { OrganiserConfigComponent } from './organiser-config.component';
 import {
     OrganiserApiService,
@@ -46,7 +47,7 @@ describe('OrganiserConfigComponent translations', () => {
             'listLanguages', 'listPools', 'createPool', 'updatePool',
             'listTags', 'createTag', 'updateTag', 'archiveTag',
             'listSpots', 'createSpot', 'updateSpot', 'archiveSpot', 'uploadSpotImage',
-            'getScript', 'setScript', 'setLanguages', 'dashboard',
+            'getScript', 'setScript', 'uploadScript', 'setLanguages', 'dashboard',
         ]);
         admin = jasmine.createSpyObj<AdminApiService>('AdminApiService', ['getEvent', 'updateEvent']);
 
@@ -320,5 +321,57 @@ describe('OrganiserConfigComponent translations', () => {
             dirty: false,
         });
         expect(c.script()).toEqual([{ translations: { en: 'Hi?' } }]);
+    });
+
+    // -- DSL script upload --------------------------------------------------
+
+    describe('uploadScript', () => {
+        it('posts the textarea source and stores the parsed preview on success', () => {
+            const c = createInitialised();
+            c.selectedPoolId.set('p1');
+            c.scriptSource = 'pool greetings random\n  - hi\nact a\n  end = 1m\n  use greetings\n';
+            const parsed = {
+                pools: [{ name: 'greetings', mode: 'random' as const, questions: [{ defaultText: 'hi', translations: [], requires: { self: [], partner: [] } }] }],
+                acts: [{ name: 'a', end: { durationSeconds: 60 }, sources: [{ poolName: 'greetings', requires: { self: [], partner: [] } }] }],
+            };
+            api.uploadScript.and.returnValue(of({
+                id: 'qs1', poolId: 'p1', questions: [], source: c.scriptSource, parsed,
+            }));
+
+            c.uploadScript();
+
+            expect(api.uploadScript).toHaveBeenCalledWith('p1', c.scriptSource);
+            expect(c.scriptErrors()).toEqual([]);
+            expect(c.scriptParsed()?.pools[0].name).toBe('greetings');
+            expect(c.scriptUploadMessage()).toContain('uploaded');
+        });
+
+        it('surfaces structured parse errors from the backend', () => {
+            const c = createInitialised();
+            c.selectedPoolId.set('p1');
+            c.scriptSource = 'gibberish';
+            const errors = [{ line: 1, message: 'Unknown top-level directive: "gibberish".' }];
+            api.uploadScript.and.returnValue(throwError(() => ({
+                error: { code: 'QUESTION_SCRIPT_INVALID', errors },
+            })));
+
+            c.uploadScript();
+
+            expect(c.scriptErrors()).toEqual(errors);
+            expect(c.scriptUploadMessage()).toContain('errors');
+        });
+
+        it('does nothing when no pool is selected or the source is empty', () => {
+            const c = createInitialised();
+            c.scriptSource = '';
+            c.selectedPoolId.set('p1');
+            c.uploadScript();
+            expect(api.uploadScript).not.toHaveBeenCalled();
+
+            c.scriptSource = 'pool x random\n  - hi\nact a\n  end = 1m\n  use x\n';
+            c.selectedPoolId.set(null);
+            c.uploadScript();
+            expect(api.uploadScript).not.toHaveBeenCalled();
+        });
     });
 });
