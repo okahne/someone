@@ -38,7 +38,11 @@ export class SessionsService {
         sessionId: string;
         state: SingleState;
         eventId: string;
+        eventTitle: string;
+        eventLanguages: { locale: string; isDefault: boolean }[];
         poolId: string | null;
+        poolTitle: string | null;
+        poolTranslations: { locale: string; title: string; description: string | null }[];
         ownTagIds: string[];
         mandatoryTagIds: string[];
         activeMatchId: string | null;
@@ -47,11 +51,23 @@ export class SessionsService {
         const session = await this.prisma.singleSession.findUnique({
             where: { id: sessionId },
             include: {
+                event: {
+                    select: {
+                        title: true,
+                        languages: { select: { locale: true, isDefault: true }, orderBy: { sortOrder: 'asc' } },
+                    },
+                },
                 poolMemberships: {
                     where: { leftAt: null },
                     include: {
                         preferences: { orderBy: { createdAt: 'desc' }, take: 1 },
-                        pool: { select: { callSchedule: true } },
+                        pool: {
+                            select: {
+                                callSchedule: true,
+                                defaultTitle: true,
+                                translations: { select: { locale: true, title: true, description: true } },
+                            },
+                        },
                     },
                 },
                 matchesAsA: { where: { releasedAt: null }, take: 1 },
@@ -67,7 +83,11 @@ export class SessionsService {
             sessionId: session.id,
             state: session.state,
             eventId: session.eventId,
+            eventTitle: session.event.title,
+            eventLanguages: session.event.languages,
             poolId: membership?.poolId ?? null,
+            poolTitle: membership?.pool?.defaultTitle ?? null,
+            poolTranslations: membership?.pool?.translations ?? [],
             ownTagIds: membership?.ownTagIds ?? [],
             mandatoryTagIds: pref?.mandatoryTagIds ?? [],
             activeMatchId: activeMatch?.id ?? null,
@@ -120,6 +140,34 @@ export class SessionsService {
         });
     }
 
+    async leavePool(sessionId: string): Promise<{ poolId: string | null }> {
+        const membership = await this.prisma.singlePoolMembership.findFirst({
+            where: { sessionId, leftAt: null },
+        });
+        if (!membership) return { poolId: null };
+        // Cannot leave while in an active match — caller must end the meeting first.
+        const activeMatch = await this.prisma.match.findFirst({
+            where: {
+                releasedAt: null,
+                OR: [{ sessionAId: sessionId }, { sessionBId: sessionId }],
+            },
+        });
+        if (activeMatch) {
+            throw new BadRequestException('Cannot leave pool while in an active match');
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.singlePoolMembership.updateMany({
+                where: { sessionId, leftAt: null },
+                data: { leftAt: new Date() },
+            });
+            await tx.singleSession.update({
+                where: { id: sessionId },
+                data: { state: SingleState.JOINED },
+            });
+        });
+        return { poolId: membership.poolId };
+    }
+
     async setOwnTags(sessionId: string, tagIds: string[]): Promise<void> {
         const membership = await this.prisma.singlePoolMembership.findFirst({
             where: { sessionId, leftAt: null },
@@ -163,16 +211,16 @@ export class SessionsService {
         });
     }
 
-    async setMode(sessionId: string, mode: 'AVAILABLE' | 'SEARCHING' | 'BOOKED', mandatoryTagIds: string[] = []): Promise<void> {
-        const target = mode === 'AVAILABLE' ? SingleState.AVAILABLE
+    async setMode(sessionId: string, mode: 'JOINED' | 'AVAILABLE' | 'SEARCHING' | 'BOOKED', mandatoryTagIds: string[] = []): Promise<void> {
+        const target = mode === 'JOINED' ? SingleState.JOINED
+            : mode === 'AVAILABLE' ? SingleState.AVAILABLE
             : mode === 'SEARCHING' ? SingleState.SEARCHING
             : SingleState.BOOKED;
         const membership = await this.prisma.singlePoolMembership.findFirst({
             where: { sessionId, leftAt: null },
         });
         if (!membership) throw new BadRequestException('No active pool');
-        if (mode !== 'AVAILABLE') {
-            if (!mandatoryTagIds.length) throw new BadRequestException('mandatoryTagIds required');
+        if ((mode === 'SEARCHING' || mode === 'BOOKED') && mandatoryTagIds.length) {
             const validTags = await this.prisma.tag.count({
                 where: { id: { in: mandatoryTagIds }, poolId: membership.poolId, archivedAt: null },
             });
@@ -180,7 +228,7 @@ export class SessionsService {
         }
         await this.prisma.$transaction(async (tx) => {
             await tx.singlePreference.deleteMany({ where: { sessionId } });
-            if (mode !== 'AVAILABLE') {
+            if (mode === 'SEARCHING' || mode === 'BOOKED') {
                 await tx.singlePreference.create({
                     data: { sessionId, poolMembershipId: membership.id, mandatoryTagIds },
                 });

@@ -75,7 +75,7 @@ export class SetModeDto {
     mode!: SingleMode;
 
     /** Required when mode is SEARCHING or BOOKED; ignored otherwise. */
-    @ValidateIf((o: SetModeDto) => o.mode !== SingleMode.AVAILABLE)
+    @ValidateIf((o: SetModeDto) => o.mode === SingleMode.SEARCHING || o.mode === SingleMode.BOOKED)
     @IsArray()
     @IsUUID('all', { each: true })
     mandatoryTagIds?: string[];

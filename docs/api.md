@@ -197,7 +197,7 @@ All persistent-user endpoints require a valid JWT. Anonymous session endpoints a
   "mandatoryTagIds": ["uuid"]
 }
 ```
-`mandatoryTagIds` is required when `mode` is `SEARCHING` or `BOOKED`, ignored otherwise.
+`mandatoryTagIds` is optional. When provided alongside `SEARCHING` or `BOOKED`, it filters candidate partners to those whose `ownTagIds` cover every listed tag. An empty array means no tag requirement and matches anyone in the pool. Ignored for `AVAILABLE`.
 
 ---
 

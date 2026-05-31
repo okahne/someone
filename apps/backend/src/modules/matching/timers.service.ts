@@ -51,8 +51,10 @@ export class TimersService {
         this.noShowTimers.delete(matchId);
     }
 
-    async scheduleMeetingTimers(matchId: string, timeLimitMinutes: number): Promise<void> {
+    async scheduleMeetingTimers(matchId: string, timeLimitMinutes: number | null): Promise<void> {
         this.cancelMeetingTimers(matchId);
+        // null/0 means unlimited — don't schedule expiry or warning.
+        if (!timeLimitMinutes || timeLimitMinutes <= 0) return;
         const totalMs = timeLimitMinutes * 60 * 1000;
         const warningMs = Math.max(totalMs - 2 * 60 * 1000, 0);
         const match = await this.prisma.match.findUnique({ where: { id: matchId } });

@@ -4,6 +4,7 @@ export interface AppConfig {
     nodeEnv: string;
     port: number;
     publicBaseUrl: string;
+    publicBaseDomain?: string;
     jwtSecret: string;
     jwtAccessTtlSeconds: number;
     jwtRefreshTtlSeconds: number;
@@ -21,6 +22,7 @@ export default registerAs<AppConfig>('app', () => ({
     nodeEnv: process.env['NODE_ENV'] ?? 'development',
     port: Number(process.env['PORT'] ?? 3000),
     publicBaseUrl: process.env['PUBLIC_BASE_URL'] ?? 'http://localhost:4200',
+    publicBaseDomain: process.env['PUBLIC_BASE_DOMAIN'],
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-jwt-secret-change-me',
     jwtAccessTtlSeconds: Number(process.env['JWT_ACCESS_TTL_SECONDS'] ?? 3600),
     jwtRefreshTtlSeconds: Number(process.env['JWT_REFRESH_TTL_SECONDS'] ?? 60 * 60 * 24 * 30),

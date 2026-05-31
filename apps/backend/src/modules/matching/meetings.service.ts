@@ -48,7 +48,7 @@ export class MeetingsService {
             await this.state.transition(match.sessionBId, SingleState.MEETING);
             this.broker.emitToSession(match.sessionAId, { type: ServerMessageType.STATE_CHANGED, state: SingleState.MEETING });
             this.broker.emitToSession(match.sessionBId, { type: ServerMessageType.STATE_CHANGED, state: SingleState.MEETING });
-            const limit = pool.meetingTimeLimitMinutes ?? 20;
+            const limit = pool.meetingTimeLimitMinutes ?? null;
             await this.timers.scheduleMeetingTimers(matchId, limit);
             this.timers.cancelNoShow(matchId);
         }

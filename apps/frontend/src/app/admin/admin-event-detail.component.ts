@@ -10,7 +10,7 @@ import { AdminApiService, OrganiserAssignment } from '../core/admin-api.service'
     imports: [CommonModule, FormsModule, RouterLink],
     template: `
         <h1>Event organisers</h1>
-        <p><a [routerLink]="['/admin/events', eventId, 'configure']">→ Configure pools, tags, spots, script, dashboard</a></p>
+        <p><a class="btn" [routerLink]="['/admin/events', eventId, 'configure']">→ Configure pools, tags, spots, script, dashboard</a></p>
         <div class="card">
             <h2>Assign organiser</h2>
             <div class="row">

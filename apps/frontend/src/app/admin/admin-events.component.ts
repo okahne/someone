@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AdminApiService, EventDto } from '../core/admin-api.service';
+import { buildPublicEventUrl } from '../core/event-host';
 
 @Component({
     selector: 'app-admin-events',
@@ -22,7 +23,9 @@ import { AdminApiService, EventDto } from '../core/admin-api.service';
                     <label for="d">Description</label>
                     <input id="d" [(ngModel)]="newDescription" />
                 </div>
-                <button (click)="create()" [disabled]="!newTitle">Create</button>
+                <div style="display: flex; justify-content: center;">
+                    <button (click)="create()" [disabled]="!newTitle">Create</button>
+                </div>
             </div>
         </div>
 
@@ -33,14 +36,14 @@ import { AdminApiService, EventDto } from '../core/admin-api.service';
                 <tbody>
                     @for (e of events(); track e.id) {
                         <tr>
-                            <td><a [routerLink]="['/admin/events', e.id]">{{ e.title }}</a></td>
+                            <td><a class="btn secondary sm" [routerLink]="['/admin/events', e.id]">{{ e.title }}</a></td>
                             <td><span class="badge {{ e.status.toLowerCase() }}">{{ e.status }}</span></td>
                             <td class="muted">{{ e.slug }}</td>
                             <td>
                                 <div class="cluster">
-                                    <a [routerLink]="['/admin/events', e.id]">Organisers</a>
-                                    <a [routerLink]="['/admin/events', e.id, 'configure']">Configure</a>
-                                    <a [href]="publicUrl(e)" target="_blank" rel="noopener">Public page ↗</a>
+                                    <a class="btn secondary sm" [routerLink]="['/admin/events', e.id]">Organisers</a>
+                                    <a class="btn secondary sm" [routerLink]="['/admin/events', e.id, 'configure']">Configure</a>
+                                    <a class="btn secondary sm" [href]="publicUrl(e)" target="_blank" rel="noopener">Public page ↗</a>
                                 </div>
                             </td>
                             <td>
@@ -52,6 +55,9 @@ import { AdminApiService, EventDto } from '../core/admin-api.service';
                                 }
                                 @if (e.status === 'LIVE' || e.status === 'PUBLISHED') {
                                     <button class="secondary" (click)="setStatus(e, 'CLOSED')">Close</button>
+                                }
+                                @if (e.status === 'CLOSED') {
+                                    <button (click)="setStatus(e, 'PUBLISHED')">Reopen</button>
                                 }
                             </td>
                         </tr>
@@ -87,6 +93,6 @@ export class AdminEventsComponent implements OnInit {
     }
 
     publicUrl(e: EventDto): string {
-        return `/event/${e.slug}`;
+        return buildPublicEventUrl(e.slug);
     }
 }

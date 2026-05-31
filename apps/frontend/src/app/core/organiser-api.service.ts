@@ -7,9 +7,10 @@ export interface PoolDto {
     id: string;
     eventId: string;
     defaultTitle: string;
-    translations: { locale: string; title: string }[];
+    defaultDescription?: string | null;
+    translations: { locale: string; title: string; description?: string | null }[];
     allowRematch: boolean;
-    callSchedule: { cron: string };
+    callSchedule: { cron: string } | null;
     meetingTimeLimitMinutes?: number | null;
     archivedAt?: string | null;
 }

@@ -74,8 +74,9 @@ export class MatchingService {
             return { matchId: finalised[0].matchId };
         }
 
-        // No match → UNMATCHED
-        await this.state.transition(sessionId, SingleState.UNMATCHED);
+        // No match found right now — stay AVAILABLE so other singles can still pick us
+        // and so the next scheduled call considers us.
+        await this.state.transition(sessionId, SingleState.AVAILABLE);
         return null;
     }
 

@@ -79,11 +79,12 @@ export class PoolsService {
             data: {
                 eventId,
                 defaultTitle: dto.defaultTitle,
+                ...(dto.defaultDescription !== undefined ? { defaultDescription: dto.defaultDescription } : {}),
                 allowRematch: dto.allowRematch,
-                callSchedule: dto.callSchedule as object,
+                callSchedule: (dto.callSchedule ?? {}) as object,
                 ...(dto.meetingTimeLimitMinutes !== undefined ? { meetingTimeLimitMinutes: dto.meetingTimeLimitMinutes } : {}),
                 ...(dto.translations?.length
-                    ? { translations: { createMany: { data: dto.translations.map((t) => ({ locale: t.locale, title: t.title })) } } }
+                    ? { translations: { createMany: { data: dto.translations.map((t) => ({ locale: t.locale, title: t.title, description: t.description ?? null })) } } }
                     : {}),
             },
             include: { translations: true },
@@ -133,8 +134,9 @@ export class PoolsService {
                 where: { id },
                 data: {
                     ...(dto.defaultTitle !== undefined ? { defaultTitle: dto.defaultTitle } : {}),
+                    ...(dto.defaultDescription !== undefined ? { defaultDescription: dto.defaultDescription } : {}),
                     ...(dto.allowRematch !== undefined ? { allowRematch: dto.allowRematch } : {}),
-                    ...(dto.callSchedule !== undefined ? { callSchedule: dto.callSchedule as object } : {}),
+                    ...(dto.callSchedule !== undefined ? { callSchedule: (dto.callSchedule ?? {}) as object } : {}),
                     ...(dto.meetingTimeLimitMinutes !== undefined ? { meetingTimeLimitMinutes: dto.meetingTimeLimitMinutes } : {}),
                 },
             });
@@ -142,7 +144,7 @@ export class PoolsService {
                 await tx.poolTranslation.deleteMany({ where: { poolId: id } });
                 if (dto.translations.length > 0) {
                     await tx.poolTranslation.createMany({
-                        data: dto.translations.map((t) => ({ poolId: id, locale: t.locale, title: t.title })),
+                        data: dto.translations.map((t) => ({ poolId: id, locale: t.locale, title: t.title, description: t.description ?? null })),
                     });
                 }
             }
@@ -164,20 +166,22 @@ export class PoolsService {
         id: string;
         eventId: string;
         defaultTitle: string;
+        defaultDescription: string | null;
         allowRematch: boolean;
         callSchedule: unknown;
         meetingTimeLimitMinutes: number | null;
         archivedAt: Date | null;
-        translations: { locale: string; title: string }[];
+        translations: { locale: string; title: string; description: string | null }[];
     }): PoolDto {
         const schedule = p.callSchedule as { cron?: string } | null;
         return {
             id: p.id,
             eventId: p.eventId,
             defaultTitle: p.defaultTitle,
-            translations: p.translations.map((t) => ({ locale: t.locale, title: t.title })),
+            defaultDescription: p.defaultDescription,
+            translations: p.translations.map((t) => ({ locale: t.locale, title: t.title, description: t.description })),
             allowRematch: p.allowRematch,
-            callSchedule: { cron: schedule?.cron ?? '' },
+            callSchedule: schedule?.cron ? { cron: schedule.cron } : null,
             meetingTimeLimitMinutes: p.meetingTimeLimitMinutes,
             archivedAt: p.archivedAt?.toISOString() ?? null,
         };

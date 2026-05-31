@@ -11,7 +11,7 @@ import { AdminApiService, AuditEntry } from '../core/admin-api.service';
         <h1>Audit log</h1>
         <div class="card">
             <div class="row">
-                <input [(ngModel)]="entityType" placeholder="Entity type filter" />
+                <input [(ngModel)]="entityType" placeholder="Entity type filter" style="flex: 1; min-width: 0;" />
                 <button (click)="refresh()">Filter</button>
             </div>
         </div>

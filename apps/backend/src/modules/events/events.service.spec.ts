@@ -53,4 +53,22 @@ describe('EventsService transitions', () => {
             service.setStatus('actor', 'e1', EventStatus.PUBLISHED),
         ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    it('allows CLOSED → PUBLISHED (reopen)', async () => {
+        prisma.event.findUnique.mockResolvedValue({ id: 'e1', status: EventStatus.CLOSED });
+        prisma.event.update.mockResolvedValue({
+            id: 'e1', slug: 's', title: 't', description: null,
+            status: EventStatus.PUBLISHED, createdBy: 'a',
+            createdAt: new Date(), updatedAt: new Date(),
+        });
+        const res = await service.setStatus('actor', 'e1', EventStatus.PUBLISHED);
+        expect(res.status).toBe(EventStatus.PUBLISHED);
+    });
+
+    it('rejects CLOSED → LIVE directly', async () => {
+        prisma.event.findUnique.mockResolvedValue({ id: 'e1', status: EventStatus.CLOSED });
+        await expect(
+            service.setStatus('actor', 'e1', EventStatus.LIVE),
+        ).rejects.toBeInstanceOf(ConflictException);
+    });
 });

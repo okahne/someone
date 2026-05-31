@@ -425,6 +425,32 @@ tbody tr.selected {
     box-shadow: inset 4px 0 0 var(--brand-500);
 }
 
+/* Pool scope — visually groups all per-pool cards. */
+.pool-scope {
+    position: relative;
+    border-left: 3px solid var(--brand-500);
+    padding-left: var(--space-3);
+    margin-top: var(--space-4);
+}
+.pool-banner {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+}
+.pool-banner strong {
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
 table.compact th, table.compact td { padding: 8px var(--space-3); }
 
 /* ---- 10. Layout shells ------------------------------------------------- */
@@ -488,6 +514,48 @@ nav.sidebar a.active {
     background: var(--brand-gradient);
     color: var(--text-on-brand);
     box-shadow: var(--shadow-sm);
+}
+nav.sidebar .recent {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+nav.sidebar .recent h4 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 var(--space-2) 12px;
+}
+nav.sidebar .recent ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+nav.sidebar .recent a {
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 400;
+}
+nav.sidebar .recent a .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+}
+nav.sidebar .recent a .badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 2px 6px;
 }
 
 main.content {

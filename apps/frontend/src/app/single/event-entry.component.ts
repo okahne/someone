@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../core/auth.service';
+import { getEventSlugFromHost } from '../core/event-host';
 import { PublicEvent, SingleApiService } from '../core/single-api.service';
 
 @Component({
@@ -37,7 +38,11 @@ import { PublicEvent, SingleApiService } from '../core/single-api.service';
                             <input [(ngModel)]="displayName" placeholder="Display name" style="flex:1" />
                             <button (click)="joinAnonymous()" [disabled]="!displayName">Join</button>
                         </div>
-                        <p class="muted">Or sign in with <a [href]="ssoLink('google')">Google</a> or <a [href]="ssoLink('discord')">Discord</a>.</p>
+                        <p class="muted">Or sign in with:</p>
+                        <div class="cluster">
+                            <a class="btn secondary" [href]="ssoLink('google')">Google</a>
+                            <a class="btn secondary" [href]="ssoLink('discord')">Discord</a>
+                        </div>
                     }
                 </div>
             }
@@ -61,7 +66,11 @@ export class EventEntryComponent implements OnInit {
     ) { }
 
     ngOnInit(): void {
-        this.slug = this.route.snapshot.paramMap.get('slug') ?? '';
+        // Slug source priority: explicit /event/:slug route param, then
+        // `<slug>.<domain>` subdomain when mounted on the apex root route.
+        this.slug = this.route.snapshot.paramMap.get('slug')
+            ?? getEventSlugFromHost()
+            ?? '';
         this.api.publicEvent(this.slug).subscribe({
             next: (e) => {
                 this.event.set(e);
@@ -107,6 +116,9 @@ export class EventEntryComponent implements OnInit {
     }
 
     ssoLink(provider: 'google' | 'discord'): string {
-        return `/api/auth/${provider}?redirect=${encodeURIComponent('/event/' + this.slug)}`;
+        // When mounted on `<slug>.<domain>` the OAuth post-login should land
+        // back on the same subdomain root; otherwise fall back to the path form.
+        const redirect = getEventSlugFromHost() ? '/' : `/event/${this.slug}`;
+        return `/api/auth/${provider}?redirect=${encodeURIComponent(redirect)}`;
     }
 }

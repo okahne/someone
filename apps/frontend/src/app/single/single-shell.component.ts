@@ -6,7 +6,25 @@ import { AuthService } from '../core/auth.service';
 import { PublicEvent, SessionSnapshot, SingleApiService } from '../core/single-api.service';
 import { WsClientService } from '../core/ws-client.service';
 
-interface Tag { id: string; defaultLabel: string }
+interface Tag { id: string; defaultLabel: string; translations?: { locale: string; label: string }[] }
+interface PoolListItem { id: string; defaultTitle: string; translations?: { locale: string; title: string }[] }
+
+const LOCALE_STORAGE_KEY = 'single.locale';
+
+function pickTranslation<T extends { locale: string }>(
+    fallback: string,
+    items: T[] | undefined,
+    locale: string | null,
+    field: keyof T,
+): string {
+    if (!locale || !items?.length) return fallback;
+    const wanted = locale.toLowerCase();
+    const exact = items.find((t) => t.locale.toLowerCase() === wanted);
+    if (exact) return String(exact[field] ?? fallback);
+    const base = wanted.split('-')[0];
+    const baseMatch = items.find((t) => t.locale.toLowerCase().split('-')[0] === base);
+    return baseMatch ? String(baseMatch[field] ?? fallback) : fallback;
+}
 
 @Component({
     selector: 'app-single-shell',
@@ -15,10 +33,32 @@ interface Tag { id: string; defaultLabel: string }
     template: `
         <div class="single-shell">
             <div class="brand-header">
-                Blind Date
+                <span>Blind Date</span>
                 <span class="ws-dot" [class.ws-dot--on]="wsConnected()"
                       [title]="wsConnected() ? 'online' : 'offline'"></span>
+                @if (availableLocales().length > 1) {
+                    <select class="locale-select"
+                            [ngModel]="locale()"
+                            (ngModelChange)="setLocale($event)"
+                            aria-label="Language">
+                        @for (l of availableLocales(); track l) {
+                            <option [value]="l">{{ l }}</option>
+                        }
+                    </select>
+                }
             </div>
+
+            @if (snapshot(); as s) {
+                <div class="context-header">
+                    <div class="context-event">{{ s.eventTitle }}</div>
+                    @if (s.poolId) {
+                        <div class="context-pool">
+                            <span class="context-pool-label">Pool</span>
+                            <strong>{{ currentPoolTitle() }}</strong>
+                        </div>
+                    }
+                </div>
+            }
 
             <!-- Pool selection -->
             @if (snapshot() && !snapshot()!.poolId && !activeMatch()) {
@@ -26,7 +66,7 @@ interface Tag { id: string; defaultLabel: string }
                     <h2>Choose a pool</h2>
                     <div class="cluster">
                         @for (p of pools(); track p.id) {
-                            <button (click)="join(p.id)">{{ p.defaultTitle }}</button>
+                            <button (click)="join(p.id)">{{ poolLabel(p) }}</button>
                         }
                     </div>
                 </div>
@@ -39,36 +79,50 @@ interface Tag { id: string; defaultLabel: string }
                         <p class="countdown">Next call in <strong>{{ c }}</strong></p>
                     }
 
-                    <h2>Your tags</h2>
-                    <div class="cluster">
-                        @for (t of tags(); track t.id) {
-                            <button type="button"
-                                    [class.secondary]="!ownTags().includes(t.id)"
-                                    (click)="toggleOwn(t.id)">
-                                {{ t.defaultLabel }}
-                            </button>
-                        }
-                    </div>
+                    <section class="section">
+                        <h3 class="section-title">Your tags</h3>
+                        <div class="cluster">
+                            @for (t of tags(); track t.id) {
+                                <button type="button"
+                                        [class.secondary]="!ownTags().includes(t.id)"
+                                        (click)="toggleOwn(t.id)">
+                                    {{ tagLabel(t) }}
+                                </button>
+                            }
+                        </div>
+                    </section>
 
-                    <h2>Looking for</h2>
-                    <div class="cluster">
-                        @for (t of tags(); track t.id) {
-                            <button type="button"
-                                    [class.secondary]="!mandatory().includes(t.id)"
-                                    (click)="toggleMandatory(t.id)">
-                                {{ t.defaultLabel }}
-                            </button>
-                        }
-                    </div>
+                    <section class="section">
+                        <h3 class="section-title">Looking for</h3>
+                        <div class="cluster">
+                            @for (t of tags(); track t.id) {
+                                <button type="button"
+                                        [class.secondary]="!mandatory().includes(t.id)"
+                                        (click)="toggleMandatory(t.id)">
+                                    {{ tagLabel(t) }}
+                                </button>
+                            }
+                        </div>
+                    </section>
 
-                    <h2>Mode</h2>
-                    <div class="cluster">
-                        <button (click)="mode('AVAILABLE')">Available now</button>
-                        <button (click)="mode('SEARCHING')">Search now</button>
-                        <button class="secondary" (click)="mode('BOOKED')">Book next call</button>
-                    </div>
+                    <section class="section">
+                        <h3 class="section-title">Mode</h3>
+                        <div class="cluster">
+                            <button [class.secondary]="snapshot()!.state !== 'AVAILABLE'"
+                                    (click)="toggleMode('AVAILABLE')">Available now</button>
+                            <button [class.secondary]="snapshot()!.state !== 'SEARCHING'"
+                                    (click)="toggleMode('SEARCHING')">Search now</button>
+                            <button [class.secondary]="snapshot()!.state !== 'BOOKED'"
+                                    (click)="toggleMode('BOOKED')">Book next call</button>
+                        </div>
+                    </section>
                     @if (modeError()) { <p class="error">{{ modeError() }}</p> }
                     @if (saveError()) { <p class="error">{{ saveError() }}</p> }
+
+                    <section class="section section--leave">
+                        <button type="button" class="secondary" (click)="leave()">Leave pool</button>
+                        @if (leaveError()) { <p class="error">{{ leaveError() }}</p> }
+                    </section>
                 </div>
             }
 
@@ -104,6 +158,55 @@ interface Tag { id: string; defaultLabel: string }
         </div>
     `,
     styles: [`
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            white-space: nowrap;
+        }
+        .brand-header > span:first-child { flex: 0 0 auto; }
+        .brand-header > .ws-dot { flex: 0 0 auto; margin-right: auto; }
+        select.locale-select {
+            font: inherit;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-subtle, rgba(127,127,127,0.3));
+            background: var(--bg-input, transparent);
+            color: inherit;
+            text-transform: uppercase;
+            width: auto;
+            max-width: 8rem;
+            min-width: 0;
+            line-height: 1.2;
+            flex: 0 0 auto;
+        }
+        .context-header {
+            margin: var(--space-2) 0 var(--space-4);
+            padding: var(--space-3) var(--space-4);
+            border-left: 3px solid var(--accent, #5b8def);
+            background: var(--surface-2, rgba(127,127,127,0.06));
+            border-radius: 4px;
+        }
+        .context-event {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .context-pool {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-2);
+            margin-top: 2px;
+        }
+        .context-pool-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .context-pool strong { font-size: 16px; color: var(--text-primary); }
         .ws-dot {
             display: inline-block;
             width: 8px;
@@ -116,23 +219,49 @@ interface Tag { id: string; defaultLabel: string }
         }
         .ws-dot--on { background: #4ade80; opacity: 1; box-shadow: 0 0 6px #4ade80; }
         .countdown {
-            margin: 0 0 var(--space-3);
+            margin: 0 0 var(--space-4);
             color: var(--text-secondary);
             font-variant-numeric: tabular-nums;
         }
         .countdown strong { color: var(--text-primary); }
+        .section + .section { margin-top: var(--space-5); }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin: 0 0 var(--space-3) 0;
+        }
+        .section--leave {
+            border-top: 1px solid var(--border, rgba(127,127,127,0.2));
+            padding-top: var(--space-4);
+        }
     `],
 })
 export class SingleShellComponent implements OnInit, OnDestroy {
     sessionId = '';
     event = signal<PublicEvent | null>(null);
     snapshot = signal<SessionSnapshot | null>(null);
-    pools = signal<{ id: string; defaultTitle: string }[]>([]);
+    pools = signal<PoolListItem[]>([]);
     tags = signal<Tag[]>([]);
     ownTags = signal<string[]>([]);
     mandatory = signal<string[]>([]);
     modeError = signal<string | null>(null);
     saveError = signal<string | null>(null);
+    leaveError = signal<string | null>(null);
+    locale = signal<string | null>(
+        typeof localStorage !== 'undefined' ? localStorage.getItem(LOCALE_STORAGE_KEY) : null,
+    );
+    availableLocales = computed(() => {
+        const langs = this.snapshot()?.eventLanguages ?? [];
+        return langs.map((l) => l.locale);
+    });
+    currentPoolTitle = computed(() => {
+        const s = this.snapshot();
+        if (!s?.poolId) return '';
+        return pickTranslation(s.poolTitle ?? '', s.poolTranslations, this.locale(), 'title');
+    });
     activeMatch = signal<{ matchId: string; partner: { displayName: string }; meetingSpot: { title: string; description?: string } } | null>(null);
     warning = signal(false);
     wsConnected = computed(() => this.ws.connected());
@@ -212,6 +341,10 @@ export class SingleShellComponent implements OnInit, OnDestroy {
     refresh(): void {
         this.api.snapshot(this.sessionId).subscribe((s) => {
             this.snapshot.set(s);
+            if (!this.locale() && s.eventLanguages?.length) {
+                const def = s.eventLanguages.find((l) => l.isDefault) ?? s.eventLanguages[0];
+                this.locale.set(def.locale);
+            }
             if (s.poolId) {
                 this.api.listPoolTags(s.poolId).subscribe((t) => this.tags.set(t));
                 this.ownTags.set(s.ownTagIds);
@@ -232,6 +365,30 @@ export class SingleShellComponent implements OnInit, OnDestroy {
 
     join(poolId: string): void {
         this.api.joinPool(this.sessionId, poolId).subscribe(() => this.refresh());
+    }
+
+    leave(): void {
+        this.leaveError.set(null);
+        this.api.leavePool(this.sessionId).subscribe({
+            next: () => this.refresh(),
+            error: (e: { error?: { message?: string } }) =>
+                this.leaveError.set(e.error?.message ?? 'Failed to leave pool'),
+        });
+    }
+
+    setLocale(locale: string): void {
+        this.locale.set(locale);
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+        }
+    }
+
+    poolLabel(p: PoolListItem): string {
+        return pickTranslation(p.defaultTitle, p.translations, this.locale(), 'title');
+    }
+
+    tagLabel(t: Tag): string {
+        return pickTranslation(t.defaultLabel, t.translations, this.locale(), 'label');
     }
 
     toggleOwn(id: string): void {
@@ -261,12 +418,18 @@ export class SingleShellComponent implements OnInit, OnDestroy {
         });
     }
 
-    mode(m: 'AVAILABLE' | 'SEARCHING' | 'BOOKED'): void {
+    mode(m: 'JOINED' | 'AVAILABLE' | 'SEARCHING' | 'BOOKED'): void {
         this.modeError.set(null);
-        this.api.setMode(this.sessionId, m, m === 'AVAILABLE' ? [] : this.mandatory()).subscribe({
+        this.api.setMode(this.sessionId, m, m === 'AVAILABLE' || m === 'JOINED' ? [] : this.mandatory()).subscribe({
             next: () => this.refresh(),
             error: (e: { error?: { message?: string } }) => this.modeError.set(e.error?.message ?? 'Failed'),
         });
+    }
+
+    /** Toggles the given mode: clicking the already-active mode reverts to JOINED. */
+    toggleMode(m: 'AVAILABLE' | 'SEARCHING' | 'BOOKED'): void {
+        const current = this.snapshot()?.state;
+        this.mode(current === m ? 'JOINED' : m);
     }
 
     confirm(): void {

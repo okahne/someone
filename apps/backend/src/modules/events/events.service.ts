@@ -24,7 +24,7 @@ const ALLOWED_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
     DRAFT: [EventStatus.PUBLISHED, EventStatus.ARCHIVED],
     PUBLISHED: [EventStatus.LIVE, EventStatus.CLOSED, EventStatus.ARCHIVED],
     LIVE: [EventStatus.CLOSED, EventStatus.ARCHIVED],
-    CLOSED: [EventStatus.ARCHIVED],
+    CLOSED: [EventStatus.PUBLISHED, EventStatus.ARCHIVED],
     ARCHIVED: [],
 };
 
@@ -40,6 +40,12 @@ export class EventsService {
         this.cfg = config.getOrThrow<AppConfig>('app');
     }
 
+    // Subdomains we never want to mint as an event slug because they collide
+    // with infrastructure / apex hostnames in the `<slug>.<domain>` scheme.
+    private static readonly RESERVED_SUBDOMAINS = new Set([
+        'www', 'admin', 'api', 'app', 'auth', 'mail', 'static', 'assets', 'cdn', 'ws',
+    ]);
+
     private slugify(title: string): string {
         const base = title
             .toLowerCase()
@@ -47,7 +53,8 @@ export class EventsService {
             .replace(/^-+|-+$/g, '')
             .slice(0, 60);
         const suffix = Math.random().toString(36).slice(2, 8);
-        return `${base || 'event'}-${suffix}`;
+        const root = base && !EventsService.RESERVED_SUBDOMAINS.has(base) ? base : 'event';
+        return `${root}-${suffix}`;
     }
 
     private toDto(e: {
@@ -164,8 +171,25 @@ export class EventsService {
         const e = await this.get(id);
         return {
             slug: e.slug,
-            url: `${this.cfg.publicBaseUrl}/e/${e.slug}`,
+            url: this.buildPublicUrl(e.slug),
         };
+    }
+
+    private buildPublicUrl(slug: string): string {
+        const domain = this.cfg.publicBaseDomain;
+        if (domain) {
+            // Preserve scheme from publicBaseUrl (http vs https); strip any port — the
+            // assumption is that <slug>.<domain> is reachable on the same port the
+            // base URL uses, which is the default port for the scheme in production.
+            let scheme = 'https';
+            try {
+                scheme = new URL(this.cfg.publicBaseUrl).protocol.replace(':', '') || 'https';
+            } catch {
+                // fall through with default https
+            }
+            return `${scheme}://${slug}.${domain}`;
+        }
+        return `${this.cfg.publicBaseUrl}/event/${slug}`;
     }
 
     async getPublicBySlug(slug: string): Promise<PublicEventDto> {

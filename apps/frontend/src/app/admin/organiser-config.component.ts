@@ -72,20 +72,49 @@ interface SpotEditModel {
 
         <div class="card">
             <h2>Pools</h2>
-            <div class="row">
-                <input [(ngModel)]="newPoolTitle" placeholder="Pool title" style="flex:1" />
-                <button (click)="createPool()" [disabled]="!newPoolTitle">Create</button>
+            <p class="muted">
+                Each pool has its own tags, meeting spots, question script and
+                matching schedule. Select a pool below to configure it.
+            </p>
+            <div class="stack">
+                <div>
+                    <label>Default title ({{ defaultLocale() || '—' }})</label>
+                    <input [(ngModel)]="newPoolTitle" placeholder="Pool title" />
+                </div>
+                <div>
+                    <label>Default description ({{ defaultLocale() || '—' }})</label>
+                    <textarea
+                        rows="2"
+                        [(ngModel)]="newPoolDescription"
+                        placeholder="Optional description shown to singles"></textarea>
+                </div>
+                @for (l of nonDefaultLanguages(); track l.locale) {
+                    <div>
+                        <label>{{ l.locale }} title</label>
+                        <input
+                            [ngModel]="newPoolTranslations[l.locale]?.title ?? ''"
+                            (ngModelChange)="updateNewPoolTranslation(l.locale, 'title', $event)"
+                            [placeholder]="'Title (' + l.locale + ')'" />
+                        <label style="margin-top: var(--space-2)">{{ l.locale }} description</label>
+                        <textarea
+                            rows="2"
+                            [ngModel]="newPoolTranslations[l.locale]?.description ?? ''"
+                            (ngModelChange)="updateNewPoolTranslation(l.locale, 'description', $event)"
+                            [placeholder]="'Description (' + l.locale + ')'"></textarea>
+                    </div>
+                }
+                <button (click)="createPool()" [disabled]="!newPoolTitle">Create pool</button>
             </div>
             @if (poolError()) { <p class="error">{{ poolError() }}</p> }
-            <table>
+            <table style="margin-top: var(--space-4)">
                 <thead><tr><th>Title</th><th>Rematch</th><th>Limit (min)</th><th>Schedule</th><th></th></tr></thead>
                 <tbody>
                     @for (p of pools(); track p.id) {
                         <tr [class.selected]="p.id === selectedPoolId()">
-                            <td><a href="#" (click)="$event.preventDefault(); selectPool(p)">{{ p.defaultTitle }}</a></td>
+                            <td><a class="btn secondary sm" href="#" (click)="$event.preventDefault(); selectPool(p)">{{ p.defaultTitle }}</a></td>
                             <td>{{ p.allowRematch ? 'yes' : 'no' }}</td>
-                            <td>{{ p.meetingTimeLimitMinutes ?? '—' }}</td>
-                            <td class="muted">{{ p.callSchedule.cron }}</td>
+                            <td>{{ p.meetingTimeLimitMinutes ?? 'unlimited' }}</td>
+                            <td class="muted">{{ p.callSchedule?.cron || 'No schedule' }}</td>
                             <td><button (click)="publish(p)">Publish</button></td>
                         </tr>
                     }
@@ -94,26 +123,70 @@ interface SpotEditModel {
         </div>
 
         @if (selectedPool(); as pool) {
+            <div class="pool-scope">
+                <div class="pool-banner">
+                    <span class="muted">Configuring pool</span>
+                    <strong>{{ pool.defaultTitle }}</strong>
+                </div>
             <div class="card">
-                <h2>Pool: {{ pool.defaultTitle }}</h2>
+                <h2>Pool settings — {{ pool.defaultTitle }}</h2>
+                <p class="muted">These settings apply only to this pool.</p>
                 <div class="stack">
+                    <div>
+                        <label>Default title ({{ defaultLocale() || '—' }})</label>
+                        <input [(ngModel)]="poolEdit.defaultTitle" />
+                    </div>
+                    <div>
+                        <label>Default description ({{ defaultLocale() || '—' }})</label>
+                        <textarea rows="2" [(ngModel)]="poolEdit.defaultDescription"></textarea>
+                    </div>
+                    @for (l of nonDefaultLanguages(); track l.locale) {
+                        <div>
+                            <label>{{ l.locale }} title</label>
+                            <input
+                                [ngModel]="poolEdit.translations[l.locale]?.title ?? ''"
+                                (ngModelChange)="updatePoolEditTranslation(l.locale, 'title', $event)"
+                                [placeholder]="'Title (' + l.locale + ')'" />
+                            <label style="margin-top: var(--space-2)">{{ l.locale }} description</label>
+                            <textarea
+                                rows="2"
+                                [ngModel]="poolEdit.translations[l.locale]?.description ?? ''"
+                                (ngModelChange)="updatePoolEditTranslation(l.locale, 'description', $event)"
+                                [placeholder]="'Description (' + l.locale + ')'"></textarea>
+                        </div>
+                    }
                     <label>
                         <input type="checkbox" [(ngModel)]="poolEdit.allowRematch" /> allow rematch
                     </label>
                     <label>
-                        Meeting time limit (min)
-                        <input type="number" [(ngModel)]="poolEdit.meetingTimeLimitMinutes" />
+                        <input type="checkbox" [(ngModel)]="poolEdit.unlimitedMeetingTime" />
+                        Unlimited meeting time
                     </label>
+                    @if (!poolEdit.unlimitedMeetingTime) {
+                        <label>
+                            Meeting time limit (min)
+                            <input type="number" min="1" [(ngModel)]="poolEdit.meetingTimeLimitMinutes" />
+                        </label>
+                    }
                     <label>
-                        Call cron
-                        <input [(ngModel)]="poolEdit.cron" placeholder="*/15 * * * *" />
+                        <input type="checkbox" [(ngModel)]="poolEdit.scheduleEnabled" />
+                        Schedule automatic matching calls
                     </label>
-                    <button (click)="savePool()">Save pool</button>
+                    @if (poolEdit.scheduleEnabled) {
+                        <label>
+                            Call cron
+                            <input [(ngModel)]="poolEdit.cron" placeholder="*/15 * * * *" />
+                        </label>
+                    } @else {
+                        <p class="muted">No automatic matching calls — organiser must run matches manually.</p>
+                    }
+                    <button (click)="savePool()">Save pool settings</button>
                 </div>
             </div>
 
             <div class="card">
-                <h2>Tags</h2>
+                <h2>Tags — {{ pool.defaultTitle }}</h2>
+                <p class="muted">Tags belong to this pool only.</p>
                 <div class="stack">
                     <div>
                         <label>Default label ({{ defaultLocale() || '—' }})</label>
@@ -164,7 +237,8 @@ interface SpotEditModel {
             </div>
 
             <div class="card">
-                <h2>Meeting spots</h2>
+                <h2>Meeting spots — {{ pool.defaultTitle }}</h2>
+                <p class="muted">Meeting spots belong to this pool only.</p>
                 <div class="stack">
                     <div>
                         <label>Default title ({{ defaultLocale() || '—' }})</label>
@@ -245,7 +319,7 @@ interface SpotEditModel {
             </div>
 
             <div class="card">
-                <h2>Question script</h2>
+                <h2>Question script — {{ pool.defaultTitle }}</h2>
                 <p class="muted">
                     Upload a question script as a plain text file (DSL). The script
                     defines *question pools* (random or sequential), tag-based
@@ -294,7 +368,7 @@ interface SpotEditModel {
             </div>
 
             <div class="card">
-                <h2>Question script (manual)</h2>
+                <h2>Question script (manual) — {{ pool.defaultTitle }}</h2>
                 @for (q of script(); track $index) {
                     <div class="card" style="margin-bottom: var(--space-3); background: var(--bg-surface-2)">
                         <div class="stack">
@@ -322,6 +396,7 @@ interface SpotEditModel {
                     <button class="secondary" (click)="addQuestion()">Add question</button>
                     <button (click)="saveScript()">Save script</button>
                 </div>
+            </div>
             </div>
         }
 
@@ -373,14 +448,30 @@ export class OrganiserConfigComponent implements OnInit {
     newLocale = '';
     newLocaleDefault = false;
     newPoolTitle = '';
+    newPoolDescription = '';
+    newPoolTranslations: Record<string, { title: string; description: string }> = {};
     newTagLabel = '';
     newTagTranslations: Record<string, string> = {};
     newSpotTitle = '';
     newSpotDescription = '';
     newSpotTranslations: Record<string, { title: string; description: string }> = {};
-    poolEdit = {
+    poolEdit: {
+        defaultTitle: string;
+        defaultDescription: string;
+        translations: Record<string, { title: string; description: string }>;
+        allowRematch: boolean;
+        unlimitedMeetingTime: boolean;
+        meetingTimeLimitMinutes: number;
+        scheduleEnabled: boolean;
+        cron: string;
+    } = {
+        defaultTitle: '',
+        defaultDescription: '',
+        translations: {},
         allowRematch: false,
+        unlimitedMeetingTime: false,
         meetingTimeLimitMinutes: 20,
+        scheduleEnabled: false,
         cron: '*/15 * * * *',
     };
 
@@ -434,25 +525,65 @@ export class OrganiserConfigComponent implements OnInit {
 
     createPool(): void {
         this.poolError.set(null);
+        const translations = this.nonDefaultLanguages()
+            .map((l) => {
+                const tr = this.newPoolTranslations[l.locale];
+                const title = (tr?.title ?? '').trim();
+                if (!title) return null;
+                return { locale: l.locale, title, description: tr?.description.trim() || null };
+            })
+            .filter((t): t is { locale: string; title: string; description: string | null } => t !== null);
         this.api.createPool(this.eventId, {
             defaultTitle: this.newPoolTitle,
-            translations: [],
+            defaultDescription: this.newPoolDescription.trim() || null,
+            translations,
             allowRematch: false,
-            callSchedule: { cron: '*/15 * * * *' },
+            // No schedule by default — organiser opts in per pool.
+            callSchedule: null,
             meetingTimeLimitMinutes: 20,
         }).subscribe({
-            next: () => { this.newPoolTitle = ''; this.refreshPools(); },
+            next: () => {
+                this.newPoolTitle = '';
+                this.newPoolDescription = '';
+                this.newPoolTranslations = {};
+                this.refreshPools();
+            },
             error: (e: { error?: { message?: string } }) => this.poolError.set(e.error?.message ?? 'Failed'),
         });
+    }
+
+    updateNewPoolTranslation(locale: string, field: 'title' | 'description', value: string): void {
+        const current = this.newPoolTranslations[locale] ?? { title: '', description: '' };
+        this.newPoolTranslations = {
+            ...this.newPoolTranslations,
+            [locale]: { ...current, [field]: value },
+        };
+    }
+
+    updatePoolEditTranslation(locale: string, field: 'title' | 'description', value: string): void {
+        const current = this.poolEdit.translations[locale] ?? { title: '', description: '' };
+        this.poolEdit.translations = {
+            ...this.poolEdit.translations,
+            [locale]: { ...current, [field]: value },
+        };
     }
 
     selectPool(p: PoolDto): void {
         this.selectedPoolId.set(p.id);
         this.selectedPool.set(p);
+        const translations: Record<string, { title: string; description: string }> = {};
+        for (const tr of p.translations) {
+            translations[tr.locale] = { title: tr.title, description: tr.description ?? '' };
+        }
         this.poolEdit = {
+            defaultTitle: p.defaultTitle,
+            defaultDescription: p.defaultDescription ?? '',
+            translations,
             allowRematch: p.allowRematch,
+            unlimitedMeetingTime: p.meetingTimeLimitMinutes == null,
             meetingTimeLimitMinutes: p.meetingTimeLimitMinutes ?? 20,
-            cron: p.callSchedule.cron,
+            scheduleEnabled: !!p.callSchedule?.cron,
+            cron: p.callSchedule?.cron ?? '*/15 * * * *',
         };
         this.api.listTags(p.id).subscribe((t) => {
             this.tags.set(t);
@@ -477,10 +608,21 @@ export class OrganiserConfigComponent implements OnInit {
     savePool(): void {
         const id = this.selectedPoolId();
         if (!id) return;
+        const translations = this.nonDefaultLanguages()
+            .map((l) => {
+                const tr = this.poolEdit.translations[l.locale];
+                const title = (tr?.title ?? '').trim();
+                if (!title) return null;
+                return { locale: l.locale, title, description: tr?.description.trim() || null };
+            })
+            .filter((t): t is { locale: string; title: string; description: string | null } => t !== null);
         this.api.updatePool(id, {
+            defaultTitle: this.poolEdit.defaultTitle,
+            defaultDescription: this.poolEdit.defaultDescription.trim() || null,
+            translations,
             allowRematch: this.poolEdit.allowRematch,
-            meetingTimeLimitMinutes: this.poolEdit.meetingTimeLimitMinutes,
-            callSchedule: { cron: this.poolEdit.cron },
+            meetingTimeLimitMinutes: this.poolEdit.unlimitedMeetingTime ? null : this.poolEdit.meetingTimeLimitMinutes,
+            callSchedule: this.poolEdit.scheduleEnabled ? { cron: this.poolEdit.cron } : null,
         }).subscribe(() => this.refreshPools());
     }
 

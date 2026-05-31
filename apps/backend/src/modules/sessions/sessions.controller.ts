@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     Post,
@@ -90,6 +91,17 @@ export class SessionsController {
         await this.sessions.assertOwn(id, principal.sessionId);
         await this.sessions.joinPool(id, body.poolId);
         await this.broker.broadcastPoolCounts(body.poolId);
+        return { ok: true };
+    }
+
+    @Delete(':id/pool')
+    async leavePool(
+        @CurrentUser() principal: AuthenticatedPrincipal,
+        @Param('id') id: string,
+    ): Promise<{ ok: true }> {
+        await this.sessions.assertOwn(id, principal.sessionId);
+        const { poolId } = await this.sessions.leavePool(id);
+        if (poolId) await this.broker.broadcastPoolCounts(poolId);
         return { ok: true };
     }
 

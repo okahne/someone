@@ -5,8 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 const ALLOWED: Record<SingleState, SingleState[]> = {
     JOINED: [SingleState.AVAILABLE, SingleState.SEARCHING, SingleState.BOOKED, SingleState.OFFLINE],
     AVAILABLE: [SingleState.SEARCHING, SingleState.BOOKED, SingleState.MOVING, SingleState.OFFLINE, SingleState.JOINED],
-    SEARCHING: [SingleState.AVAILABLE, SingleState.MOVING, SingleState.UNMATCHED, SingleState.OFFLINE],
-    BOOKED: [SingleState.AVAILABLE, SingleState.SEARCHING, SingleState.MOVING, SingleState.UNMATCHED, SingleState.OFFLINE],
+    SEARCHING: [SingleState.AVAILABLE, SingleState.MOVING, SingleState.UNMATCHED, SingleState.OFFLINE, SingleState.JOINED],
+    BOOKED: [SingleState.AVAILABLE, SingleState.SEARCHING, SingleState.MOVING, SingleState.UNMATCHED, SingleState.OFFLINE, SingleState.JOINED],
     MOVING: [SingleState.MEETING, SingleState.AVAILABLE, SingleState.COMPLETED, SingleState.OFFLINE],
     MEETING: [SingleState.COMPLETED, SingleState.OFFLINE],
     COMPLETED: [SingleState.AVAILABLE, SingleState.SEARCHING, SingleState.BOOKED, SingleState.JOINED, SingleState.OFFLINE],

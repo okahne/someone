@@ -23,6 +23,22 @@ export class TranslationDto {
     title!: string;
 }
 
+/** Pool translation: includes an optional per-locale description. */
+export class PoolTranslationDto {
+    @IsString()
+    @Length(2, 35)
+    locale!: string;
+
+    @IsString()
+    @Length(1, 500)
+    title!: string;
+
+    @IsOptional()
+    @IsString()
+    @Length(0, 2000)
+    description?: string | null;
+}
+
 /** Pool call schedule — cron expression (timezone is configured at event level). */
 export class PoolCallScheduleDto {
     @IsString()
@@ -37,17 +53,24 @@ export class CreatePoolDto {
     defaultTitle!: string;
 
     @IsOptional()
+    @IsString()
+    @Length(0, 2000)
+    defaultDescription?: string | null;
+
+    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => TranslationDto)
-    translations?: TranslationDto[];
+    @Type(() => PoolTranslationDto)
+    translations?: PoolTranslationDto[];
 
     @IsBoolean()
     allowRematch!: boolean;
 
+    /** Optional cron schedule. Omit (or set null) to disable automated matching calls. */
+    @IsOptional()
     @ValidateNested()
     @Type(() => PoolCallScheduleDto)
-    callSchedule!: PoolCallScheduleDto;
+    callSchedule?: PoolCallScheduleDto | null;
 
     @IsOptional()
     @IsInt()
@@ -63,19 +86,25 @@ export class UpdatePoolDto {
     defaultTitle?: string;
 
     @IsOptional()
+    @IsString()
+    @Length(0, 2000)
+    defaultDescription?: string | null;
+
+    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => TranslationDto)
-    translations?: TranslationDto[];
+    @Type(() => PoolTranslationDto)
+    translations?: PoolTranslationDto[];
 
     @IsOptional()
     @IsBoolean()
     allowRematch?: boolean;
 
+    /** Pass null to clear the schedule (disable automated calls). */
     @IsOptional()
     @ValidateNested()
     @Type(() => PoolCallScheduleDto)
-    callSchedule?: PoolCallScheduleDto;
+    callSchedule?: PoolCallScheduleDto | null;
 
     @IsOptional()
     @IsInt()
@@ -99,15 +128,20 @@ export class PoolDto {
     @IsString()
     defaultTitle!: string;
 
+    @IsOptional()
+    defaultDescription?: string | null;
+
     @IsArray()
-    translations!: TranslationDto[];
+    translations!: PoolTranslationDto[];
 
     @IsBoolean()
     allowRematch!: boolean;
 
+    /** Null when the pool has no scheduled matching calls. */
+    @IsOptional()
     @ValidateNested()
     @Type(() => PoolCallScheduleDto)
-    callSchedule!: PoolCallScheduleDto;
+    callSchedule!: PoolCallScheduleDto | null;
 
     @IsOptional()
     meetingTimeLimitMinutes?: number | null;

@@ -1,4 +1,5 @@
 import { IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /** `POST /notifications/subscribe` request body. */
 export class CreatePushSubscriptionDto {
@@ -35,11 +36,13 @@ export class AuditQueryDto {
     to?: string;
 
     @IsOptional()
+    @Type(() => Number)
     @IsInt()
     @Min(1)
     limit?: number;
 
     @IsOptional()
+    @Type(() => Number)
     @IsInt()
     @Min(0)
     offset?: number;

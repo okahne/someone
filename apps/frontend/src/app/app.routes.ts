@@ -1,6 +1,17 @@
 import { Routes } from '@angular/router';
+import { getEventSlugFromHost } from './core/event-host';
 
 export const routes: Routes = [
+    // When the request arrives on `<slug>.<domain>`, the root path renders the
+    // event entry component directly. `canMatch` keeps the apex root behaviour
+    // (admin redirect) unchanged for `localhost`, `admin.<domain>`, etc.
+    {
+        path: '',
+        pathMatch: 'full',
+        canMatch: [() => getEventSlugFromHost() !== null],
+        loadComponent: () =>
+            import('./single/event-entry.component').then((m) => m.EventEntryComponent),
+    },
     { path: '', redirectTo: 'admin/login', pathMatch: 'full' },
     {
         path: 'event/:slug',
